@@ -1,0 +1,5 @@
+<launch>
+<node pkg="denso_communication" type="denso_communication_node" name="arm2">
+<rosparam file="$(find denso_communication)/cfg/smartarm_arm2.yaml" command="load"/>
+</node>
+</launch>

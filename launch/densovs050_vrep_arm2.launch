@@ -1,0 +1,5 @@
+<launch>
+<node pkg="denso_communication" type="denso_communication_vrep_node" name="arm2">
+<rosparam file="$(find denso_communication)/cfg/densovs050_vrep_arm2.yaml" command="load"/>
+</node>
+</launch>
