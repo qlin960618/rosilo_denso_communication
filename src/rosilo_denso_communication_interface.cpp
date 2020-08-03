@@ -45,7 +45,7 @@ void DensoCommunicationInterface::_get_joint_state_callback(const sensor_msgs::J
 {
     if(!enabled_)
     {
-        ROS_INFO_STREAM(ros::this_node::getName()+"::Initializing DensoCommunicationInterface enabled.");
+        ROS_INFO_STREAM(ros::this_node::getName()+"::DensoCommunicationInterface enabled.");
         enabled_=true;
     }
     joint_positions_ = rosilo::std_vector_double_to_vectorxd(msg->position);
