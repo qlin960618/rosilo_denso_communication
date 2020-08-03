@@ -41,47 +41,44 @@ using namespace Eigen;
 namespace rosilo
 {
 
-void DensoCommunicationInterface::getJointStateCallback(const sensor_msgs::JointState::ConstPtr& msg)
+void DensoCommunicationInterface::_get_joint_state_callback(const sensor_msgs::JointState::ConstPtr& msg)
 {
     if(!enabled_)
     {
+        ROS_INFO_STREAM(ros::this_node::getName()+"::Initializing DensoCommunicationInterface enabled.");
         enabled_=true;
     }
     joint_positions_ = rosilo::std_vector_double_to_vectorxd(msg->position);
 }
 
-void DensoCommunicationInterface::getToolPoseCallback(const geometry_msgs::PoseStamped::ConstPtr& msg)
+void DensoCommunicationInterface::_get_tool_pose_callback(const geometry_msgs::PoseStamped::ConstPtr& msg)
 {
     tool_pose_ = rosilo::geometry_msgs_pose_stamped_to_dq(*msg);
 }
-DensoCommunicationInterface::DensoCommunicationInterface(const std::string& node_prefix, ros::NodeHandle& node_handle_publisher, ros::NodeHandle& node_handle_subscriber)
+DensoCommunicationInterface::DensoCommunicationInterface(const std::string& node_prefix, ros::NodeHandle& node_handle_publisher, ros::NodeHandle& node_handle_subscriber):
+    enabled_(false),
+    joint_positions_(VectorXd::Zero(6)),
+    tool_pose_(1)
 {
-    enabled_ = false;
-
-    subscriber_joint_state_           = node_handle_subscriber.subscribe(node_prefix+"get/joint_state", 1, &DensoCommunicationInterface::getJointStateCallback, this);
-    subscriber_tool_pose_             = node_handle_subscriber.subscribe(node_prefix+"get/tool_pose",1,&DensoCommunicationInterface::getToolPoseCallback,this);
+    ROS_INFO_STREAM(ros::this_node::getName()+"::Initializing DensoCommunicationInterface with prefix " + node_prefix);
+    subscriber_joint_state_           = node_handle_subscriber.subscribe(node_prefix+"get/joint_state", 1, &DensoCommunicationInterface::_get_joint_state_callback, this);
+    subscriber_tool_pose_             = node_handle_subscriber.subscribe(node_prefix+"get/tool_pose",1,&DensoCommunicationInterface::_get_tool_pose_callback,this);
 
     publisher_target_joint_positions_ = node_handle_publisher.advertise<std_msgs::Float64MultiArray>(node_prefix+"set/target_joint_positions",1);
-
-    joint_positions_        = VectorXd::Zero(6);
-
-    tool_pose_ = 1;
 
     publisher_target_joint_positions_msg_.data.resize(6,0);
 }
 
-DensoCommunicationInterface::DensoCommunicationInterface(const std::string& node_prefix, ros::NodeHandle& node_handle)
+DensoCommunicationInterface::DensoCommunicationInterface(const std::string& node_prefix, ros::NodeHandle& node_handle):
+    enabled_(false),
+    joint_positions_(VectorXd::Zero(6)),
+    tool_pose_(1)
 {
-    enabled_ = false;
-
-    subscriber_joint_state_           = node_handle.subscribe(node_prefix+"get/joint_state", 1, &DensoCommunicationInterface::getJointStateCallback, this);
-    subscriber_tool_pose_             = node_handle.subscribe(node_prefix+"get/tool_pose",1,&DensoCommunicationInterface::getToolPoseCallback,this);
+    ROS_INFO_STREAM(ros::this_node::getName()+"::Initializing DensoCommunicationInterface with prefix " + node_prefix);
+    subscriber_joint_state_           = node_handle.subscribe(node_prefix+"get/joint_state", 1, &DensoCommunicationInterface::_get_joint_state_callback, this);
+    subscriber_tool_pose_             = node_handle.subscribe(node_prefix+"get/tool_pose",   1, &DensoCommunicationInterface::_get_tool_pose_callback,   this);
 
     publisher_target_joint_positions_ = node_handle.advertise<std_msgs::Float64MultiArray>(node_prefix+"set/target_joint_positions",1);
-
-    joint_positions_        = VectorXd::Zero(6);
-
-    tool_pose_ = 1;
 
     publisher_target_joint_positions_msg_.data.resize(6,0);
 }

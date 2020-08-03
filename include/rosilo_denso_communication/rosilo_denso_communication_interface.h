@@ -22,6 +22,7 @@
 #   Author: Murilo M. Marinho, email: murilo@nml.t.u-tokyo.ac.jp
 #
 # ################################################################*/
+#include<atomic>
 
 
 //ROS related
@@ -42,7 +43,7 @@ namespace rosilo
 {
 class DensoCommunicationInterface{
 private:
-    bool enabled_;
+    std::atomic_bool enabled_;
 
     ros::Publisher publisher_target_joint_positions_;
     std_msgs::Float64MultiArray publisher_target_joint_positions_msg_;
@@ -54,9 +55,9 @@ private:
 
     DQ tool_pose_;
 
-    void getJointStateCallback(const sensor_msgs::JointState::ConstPtr& msg);
+    void _get_joint_state_callback(const sensor_msgs::JointState::ConstPtr& msg);
 
-    void getToolPoseCallback(const geometry_msgs::PoseStamped::ConstPtr& msg);
+    void _get_tool_pose_callback(const geometry_msgs::PoseStamped::ConstPtr& msg);
 
 public:
     DensoCommunicationInterface() = delete;

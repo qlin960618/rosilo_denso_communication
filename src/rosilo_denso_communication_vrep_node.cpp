@@ -37,7 +37,6 @@ static std::atomic_bool kill_this_process(false);
 void SigIntHandler(int)
 {
     kill_this_process = true;
-    //ROS_INFO_STREAM("SHUTDOWN SIGNAL RECEIVED");
 }
 
 /*********************************************
@@ -141,17 +140,15 @@ int DensoCommunicationVREPNode::control_loop()
 
         if(!vrep_interface_->connect(configuration_.vrep_ip,configuration_.vrep_port,10,100))
         {
-            throw std::runtime_error("Unable to initialize DensoCommunicationVREPNode with ip " + configuration_.vrep_ip);
+            throw std::runtime_error(ros::this_node::getName() + "::Unable to connect to VREP at " + configuration_.vrep_ip);
         }
-        if(not vrep_interface_->is_simulation_running())
-        {
-            vrep_interface_->start_simulation();
-        }
+        ROS_INFO_STREAM(ros::this_node::getName() + "::Connected to VREP.");
 
         joint_positions_ = vrep_interface_->get_joint_positions(configuration_.vrep_joint_names);
         target_joint_positions_ = joint_positions_;
 
-        while(not shouldShutdown())
+        ROS_INFO_STREAM(ros::this_node::getName() + "::Starting control loop...");
+        while(not should_shutdown())
         {
             //Sleep
             clock_->update_and_sleep();
@@ -171,22 +168,23 @@ int DensoCommunicationVREPNode::control_loop()
             datalogger_callback_queue_.callAvailable();
 
         }//End while not kill this node
+        ROS_INFO_STREAM(ros::this_node::getName() + "::Control loop ended.");
         vrep_interface_->disconnect();
     }
     catch(const std::exception& e)
     {
-        ROS_ERROR_STREAM("Exception caught " << e.what());
+        ROS_ERROR_STREAM(ros::this_node::getName() + "::Exception caught::" << e.what());
     }
     catch(...)
     {
-        ROS_ERROR_STREAM("Unknown caught");
+        ROS_ERROR_STREAM(ros::this_node::getName() + "::Unknown error.");
     }
 
     return 0;
 }//End function
 
 
-bool DensoCommunicationVREPNode::shouldShutdown()
+bool DensoCommunicationVREPNode::should_shutdown()
 {
     return (*kill_this_node_);
 }

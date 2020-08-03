@@ -94,7 +94,7 @@ private:
     void updateTargetJointPositionsCallback(const std_msgs::Float64MultiArray::ConstPtr& msg);
     void publishJointStates(const VectorXd& joint_positions);
 
-    bool shouldShutdown();
+    bool should_shutdown();
     void shutdown();
 
 public:
