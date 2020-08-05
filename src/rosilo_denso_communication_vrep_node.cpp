@@ -155,7 +155,7 @@ int DensoCommunicationVREPNode::control_loop()
 
             subscriber_callback_queue_.callAvailable();
             vrep_interface_->set_joint_positions(configuration_.vrep_joint_names,target_joint_positions_);
-            joint_positions_ = target_joint_positions_;
+            joint_positions_ = vrep_interface_->get_joint_positions(configuration_.vrep_joint_names);
 
             publishJointStates(joint_positions_);
             publisher_callback_queue_.callAvailable();

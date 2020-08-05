@@ -66,7 +66,7 @@ public:
 
     DensoRobotDriver(std::string server_ip_address, const int server_port_number);
 
-    std::tuple<VectorXd, bool> get_joint_positions();
+    VectorXd get_joint_positions();
     std::tuple<VectorXd, bool> get_end_effector_pose_homogenous_transformation();
     std::tuple<DQ, bool> get_end_effector_pose_dq();
 

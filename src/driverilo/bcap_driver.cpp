@@ -311,11 +311,13 @@ bool BCAPDriver::get_joint_positions(std::vector<double>& get_joint_positions_ve
 
     bool return_value = _robot_execute(std::wstring(L"CurJnt"),empty_variant_, result);
 
-    double* data_pointer;
-
-    SafeArrayAccessData(result.parray,(void**)&data_pointer);
-    get_joint_positions_vector.assign(data_pointer,data_pointer+8);
-    SafeArrayUnaccessData(result.parray);
+    if(return_value)
+    {
+        double* data_pointer;
+        SafeArrayAccessData(result.parray,(void**)&data_pointer);
+        get_joint_positions_vector.assign(data_pointer,data_pointer+8);
+        SafeArrayUnaccessData(result.parray);
+    }
 
     VariantClear(&result);
 

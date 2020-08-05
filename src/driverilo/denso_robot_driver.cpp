@@ -40,11 +40,15 @@ DensoRobotDriver::DensoRobotDriver(std::string server_ip_address, const int serv
     end_effector_pose_homogenous_transformation_buffer_.resize(10,0);
 }
 
-std::tuple<VectorXd, bool> DensoRobotDriver::get_joint_positions()
+VectorXd DensoRobotDriver::get_joint_positions()
 {
-    bool error_code = bCapDriver_.get_joint_positions(joint_positions_buffer_);
+    bool worked = bCapDriver_.get_joint_positions(joint_positions_buffer_);
+    if(!worked)
+    {
+        throw std::runtime_error("Error in DensoRobotDriver::get_joint_positions. bCapDriver::" + bCapDriver_.get_last_error_info());
+    }
     Map<VectorXd> joint_positions_(joint_positions_buffer_.data(),6);
-    return std::make_tuple(joint_positions_, error_code);
+    return joint_positions_;
 }
 
 std::tuple<VectorXd, bool> DensoRobotDriver::get_end_effector_pose_homogenous_transformation()

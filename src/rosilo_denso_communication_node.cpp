@@ -169,6 +169,7 @@ int DensoCommunication::control_loop()
 
         while(not (*kill_this_node_))
         {
+
             //Sleep
             clock_->update_and_sleep();
 
@@ -187,7 +188,7 @@ int DensoCommunication::control_loop()
                 //Store last joint positions
                 last_joint_positions_ = joint_positions_;
                 //Get current joint positions DEGREES
-                std::tie(joint_positions_, robot_communication_ok_) = robot_->get_joint_positions();
+                joint_positions_ = robot_->get_joint_positions();
                 joint_positions_ = deg2rad(joint_positions_);//Convert to RADIANS
                 if(!robot_communication_ok_)
                 {
@@ -220,7 +221,6 @@ int DensoCommunication::control_loop()
             datalogger_->log(node_prefix_.substr(1)+"_computational_time",clock_->get_computation_time());
             datalogger_->log(node_prefix_.substr(1)+"_desired_sampling_time",clock_->get_desired_thread_sampling_time_sec());
             datalogger_callback_queue_.callAvailable();
-
         }//End while not kill this node
     } catch (const std::exception& e) {
         ROS_ERROR_STREAM(ros::this_node::getName() + "::Exception caught::" << e.what());
@@ -246,11 +246,7 @@ void DensoCommunication::connect()
         VectorXd local_joint_positions = VectorXd::Zero(6);
         while(local_joint_positions.norm() < 1 && not (*kill_this_node_))
         {
-            std::tie(local_joint_positions, robot_communication_ok_) = robot_->get_joint_positions();
-            if(!robot_communication_ok_)
-            {
-                ROS_ERROR_STREAM("Error getting joint positions from robot " << node_prefix_);
-            }
+            local_joint_positions = robot_->get_joint_positions();
         }
         //Initialize the robot buffers
         joint_positions_        = deg2rad(local_joint_positions);
