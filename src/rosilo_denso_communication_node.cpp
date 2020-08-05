@@ -72,7 +72,7 @@ int main(int argc, char** argv)
         return 1;
     }
 
-    ros::init(argc, argv,"uninitialized_denso_communication_node",ros::init_options::NoSigintHandler);
+    ros::init(argc, argv,"arm2",ros::init_options::NoSigintHandler);
 
     rosilo::DensoCommunication* dc = create_instance_from_ros_parameter_server();
     if(dc != nullptr)
@@ -183,8 +183,7 @@ int DensoCommunication::control_loop()
                 joint_positions_ = deg2rad(joint_positions_); //Convert to RADIANS
                 if(!robot_communication_ok_)
                 {
-                    ROS_ERROR_STREAM("Error setting joint positions of robot " << node_prefix_);
-                    break;
+                    throw std::runtime_error(ros::this_node::getName() + "::Error setting/getting joint positions.");
                 }
             }
             else
@@ -196,15 +195,14 @@ int DensoCommunication::control_loop()
                 joint_positions_ = deg2rad(joint_positions_);//Convert to RADIANS
                 if(!robot_communication_ok_)
                 {
-                    ROS_ERROR_STREAM("Error getting joint positions from robot " << node_prefix_);
-                    break;
+                    throw std::runtime_error(ros::this_node::getName() + "::Error getting joint positions.");
                 }
                 //Get Tool Pose (FROM RC8)
                 try {
                     std::tie(tool_pose_, robot_communication_ok_) = robot_->get_end_effector_pose_dq();
                     if(!robot_communication_ok_)
                     {
-                        ROS_ERROR_STREAM("Error getting end effector pose from robot " << node_prefix_);
+                        throw std::runtime_error(ros::this_node::getName() + "::Error getting pose.");
                         break;
                     }
                     publishToolPose(tool_pose_);
