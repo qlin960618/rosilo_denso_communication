@@ -6,8 +6,9 @@
  * @brief   TCP API file.
  * @details Defines TCP APIs.
  *
- * @version 1.0
+ * @version 1.1
  * @date    2014/11/06
+ * @date    2016/12/15 Adds connection timeout function for tcp_open_client.
  * @author  DENSO WAVE
  *
  * Software License Agreement (MIT License)

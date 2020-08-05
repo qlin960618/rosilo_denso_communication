@@ -6,9 +6,11 @@
  * @brief   Common API file.
  * @details Defines some types, macros and functions to be compatible with Windows.
  *
- * @version 1.1
+ * @version 1.2
  * @date    2014/11/06
  * @date    2015/01/20 Adds VariantCopy, VariantChangeType, ChangeVarType, and GetOptionValue functions.
+ * @date    2016/09/15 Adds ConvertMultiByte2WideChar and ConvertWideChar2MultiByte functions.
+ * @date    2017/01/18 Adds VT_I8 and VT_UI8.
  * @author  DENSO WAVE
  *
  * Software License Agreement (MIT License)
@@ -40,6 +42,10 @@
 
 #ifndef _DN_USE_VARIANT_API
 #define _DN_USE_VARIANT_API (1)
+#endif
+
+#ifndef _DN_USE_BSTR_API
+#define _DN_USE_BSTR_API (1)
 #endif
 
 /**
@@ -221,6 +227,8 @@ enum VARENUM
   VT_UI1 = 17,       /**< uint8_t      */
   VT_UI2 = 18,       /**< uint16_t     */
   VT_UI4 = 19,       /**< uint32_t     */
+  VT_I8 = 20,        /**< int64_t      */
+  VT_UI8 = 21,       /**< uint64_t     */
   VT_ARRAY = 0x2000, /**< SAFEARRAY    */
 };
 
@@ -302,6 +310,7 @@ typedef struct VARIANT
   {
     int16_t iVal;         /**< VT_I2    */
     int32_t lVal;         /**< VT_I4    */
+    int64_t llVal;        /**< VT_I8    */
     float fltVal;         /**< VT_R4    */
     double dblVal;        /**< VT_R8    */
     CY cyVal;             /**< VT_CY    */
@@ -312,6 +321,7 @@ typedef struct VARIANT
     uint8_t bVal;         /**< VT_UI1   */
     uint16_t uiVal;       /**< VT_UI2   */
     uint32_t ulVal;       /**< VT_UI4   */
+    uint64_t ullVal;      /**< VT_UI8   */
     SAFEARRAY* parray;    /**< VT_ARRAY */
   };
 } VARIANT;
@@ -486,7 +496,7 @@ extern "C"
 #endif /* _DN_USE_VARIANT_API */
 #endif /* _OLEAUTO_H_ */
 
-#if _DN_USE_VARIANT_API
+#if (_DN_USE_VARIANT_API)
   /**
    * @fn         uint32_t ChangeVarType(VARIANT varSrc, uint16_t vt, void *pDest, uint32_t dwSize)
    * @brief      Changes the variant to destination value with the indicated type.
@@ -509,6 +519,24 @@ extern "C"
   _DN_EXP_COMMON HRESULT
   GetOptionValue(BSTR bstrSrc, BSTR bstrKey, uint16_t vt, VARIANT *pvarDest);
 #endif /* _DN_USE_VARIANT_API */
+
+#if (_DN_USE_BSTR_API)
+  /**
+   * @fn         wchar_t* ConvertMultiByte2WideChar(const char* chSrc)
+   * @brief      Converts string to wide string.
+   * @param[in]  chSrc The source string.
+   */
+  _DN_EXP_COMMON wchar_t*
+  ConvertMultiByte2WideChar(const char* chSrc);
+
+  /**
+   * @fn         char* ConvertWideChar2MultiByte(const wchar_t* chSrc)
+   * @brief      Converts wide string to string.
+   * @param[in]  chSrc The source string.
+   */
+  _DN_EXP_COMMON char*
+  ConvertWideChar2MultiByte(const wchar_t* chSrc);
+#endif /* _DN_USE_BSTR_API */
 
 #ifdef __cplusplus
 }

@@ -41,7 +41,7 @@ static const unsigned int BAUD_RATE[_BAUD_MAX][2] =
     _BAUD_PAIR(200), _BAUD_PAIR(300), _BAUD_PAIR(600), _BAUD_PAIR(1200), _BAUD_PAIR(1800),
     _BAUD_PAIR(2400), _BAUD_PAIR(4800), _BAUD_PAIR(9600), _BAUD_PAIR(19200), _BAUD_PAIR(38400)};
 #else
-#include "denso_communication/dn_additional.h"
+#include "dn_additional.h"
 #endif
 
 #include "dn_common.h"
@@ -220,6 +220,8 @@ static HRESULT _com_open(const struct CONN_PARAM_COM *com_param, int *sock)
     case 8:
       state.c_cflag |= CS8;
       break;
+    default:
+      break;
   }
 
   switch(com_param->parity) {
@@ -234,6 +236,8 @@ static HRESULT _com_open(const struct CONN_PARAM_COM *com_param, int *sock)
       state.c_cflag |= PARENB;
       state.c_cflag &= ~PARODD;
       break;
+    default:
+      break;
   }
 
   switch(com_param->stop_bits) {
@@ -242,6 +246,8 @@ static HRESULT _com_open(const struct CONN_PARAM_COM *com_param, int *sock)
       break;
     case TWOSTOPBITS:
       state.c_cflag |= CSTOPB;
+      break;
+    default:
       break;
   }
 

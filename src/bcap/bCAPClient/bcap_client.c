@@ -34,17 +34,17 @@
 #include <arpa/inet.h>
 #include <termios.h>
 #else
-#include "../dn_additional.h"
+#include "dn_additional.h"
 #endif
 
-#include "../dn_common.h"
-#include "../dn_device.h"
-#include "../dn_tcp.h"
-#include "../dn_udp.h"
-#include "../dn_com.h"
-#include "../dn_thread.h"
-#include "../bcap_common.h"
-#include "../bcap_funcid.h"
+#include "dn_common.h"
+#include "dn_device.h"
+#include "dn_tcp.h"
+#include "dn_udp.h"
+#include "dn_com.h"
+#include "dn_thread.h"
+#include "bcap_common.h"
+#include "bcap_funcid.h"
 #include "bcap_client.h"
 
 /**
@@ -301,6 +301,8 @@ invoke_function(int fd, int32_t id, int argc, char *format, ...)
       case VT_BSTR:
         *(BSTR *) pRet = SysAllocString(vntRet.bstrVal);
         break;
+      default:
+        break;
     }
   }
 
@@ -321,6 +323,7 @@ bCap_Open_Client(const char* connect, uint32_t timeout, unsigned int retry,
     int* pfd)
 {
   int index, *sock;
+  extern uint32_t tcp_conn_timeout;
   HRESULT hr;
   void *conn_param;
   struct CONN_PARAM_ETH eth_param =
@@ -353,6 +356,7 @@ bCap_Open_Client(const char* connect, uint32_t timeout, unsigned int retry,
       device->dn_send = &tcp_send;
       device->dn_recv = &tcp_recv;
       device->dn_set_timeout = &tcp_set_timeout;
+      tcp_conn_timeout = timeout;
       break;
     case CONN_UDP:
       hr = parse_conn_param_ether(connect, &eth_param);

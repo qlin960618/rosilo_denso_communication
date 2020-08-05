@@ -51,7 +51,6 @@
  * @def   OSFAILED(ret)
  * @brief A macro that returns TRUE/FALSE. If ret is OS failed, then returns TRUE.
  */
-
 #if defined(_USE_WIN_API)
 #define DNGetLastError() GetLastError()
 #define OSSUCCEEDED(ret) ((ret) != 0)

@@ -34,7 +34,7 @@ typedef int socklen_t;
 #include <errno.h>
 #include <sys/socket.h>
 #else
-#include "denso_communication/dn_additional.h"
+#include "dn_additional.h"
 #endif
 
 #include "dn_common.h"

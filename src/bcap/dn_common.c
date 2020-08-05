@@ -29,6 +29,9 @@
 #if defined(_USE_WIN_API)
 #include <windows.h>
 #elif defined(_USE_LINUX_API)
+#include <float.h>
+#include <limits.h>
+#include <locale.h>
 #include <errno.h>
 #ifndef _wcsicmp
 #define _wcsicmp wcscasecmp
@@ -44,7 +47,7 @@
  * @def   _LEN_VARIANT2BSTR
  * @brief A definition for the string length for converting VARIANT to BSTR.
  */
-#define _LEN_VARIANT2BSTR (100)
+#define _LEN_VARIANT2BSTR (500)
 
 #ifndef _OLEAUTO_H_
 
@@ -162,6 +165,8 @@ SafeArrayCreateVector(uint16_t vt, int32_t lLbound, uint32_t cElements)
         case VT_R4:
           sz = 4;
           break;
+        case VT_I8:
+        case VT_UI8:
         case VT_R8:
         case VT_CY:
           sz = 8;
@@ -220,6 +225,7 @@ SafeArrayDestroy(SAFEARRAY *psa)
           for (i = 0; i < psa->rgsabound[0].cElements; i++) {
             VariantClear(((VARIANT*) psa->pvData + i));
           }
+          free(psa->pvData);
           break;
         default:
           free(psa->pvData);
@@ -424,6 +430,7 @@ VariantCopy(VARIANT *pvargDest, const VARIANT *pvargSrc)
     switch (pvargSrc->vt ^ VT_ARRAY) {
       case VT_I2:
       case VT_I4:
+      case VT_I8:
       case VT_R4:
       case VT_R8:
       case VT_CY:
@@ -432,6 +439,7 @@ VariantCopy(VARIANT *pvargDest, const VARIANT *pvargSrc)
       case VT_UI1:
       case VT_UI2:
       case VT_UI4:
+      case VT_UI8:
         pvargDest->vt = pvargSrc->vt;
         pvargDest->parray = SafeArrayCreateVector(pvargSrc->vt ^ VT_ARRAY,
             lLbound, cElements);
@@ -464,14 +472,17 @@ VariantCopy(VARIANT *pvargDest, const VARIANT *pvargSrc)
       case VT_NULL:
       case VT_I2:
       case VT_I4:
+      case VT_I8:
       case VT_R4:
       case VT_R8:
       case VT_CY:
       case VT_DATE:
+      case VT_ERROR:
       case VT_BOOL:
       case VT_UI1:
       case VT_UI2:
       case VT_UI4:
+      case VT_UI8:
         memcpy(pvargDest, pvargSrc, sizeof(VARIANT));
         break;
       case VT_BSTR:
@@ -496,8 +507,8 @@ static HRESULT
 Variant2Bstr(BSTR *pbstr, VARIANT *pvarg)
 {
   HRESULT hr = S_OK;
-  char chStr[_LEN_VARIANT2BSTR + 1];
-  wchar_t wchStr[_LEN_VARIANT2BSTR + 1];
+  char chStr[_LEN_VARIANT2BSTR];
+  wchar_t wchStr[_LEN_VARIANT2BSTR];
   struct tm *tmVal;
 
   switch (pvarg->vt) {
@@ -505,13 +516,16 @@ Variant2Bstr(BSTR *pbstr, VARIANT *pvarg)
       swprintf(wchStr, _LEN_VARIANT2BSTR, L"%d", pvarg->iVal);
       break;
     case VT_I4:
-      swprintf(wchStr, _LEN_VARIANT2BSTR, L"%d", pvarg->lVal);
+      swprintf(wchStr, _LEN_VARIANT2BSTR, L"%ld", pvarg->lVal);
+      break;
+    case VT_I8:
+      swprintf(wchStr, _LEN_VARIANT2BSTR, L"%lld", pvarg->llVal);
       break;
     case VT_R4:
-      swprintf(wchStr, _LEN_VARIANT2BSTR, L"%f", pvarg->fltVal);
+      swprintf(wchStr, _LEN_VARIANT2BSTR, L"%.7G", pvarg->fltVal);
       break;
     case VT_R8:
-      swprintf(wchStr, _LEN_VARIANT2BSTR, L"%f", pvarg->dblVal);
+      swprintf(wchStr, _LEN_VARIANT2BSTR, L"%.15G", pvarg->dblVal);
       break;
     case VT_CY:
       swprintf(wchStr, _LEN_VARIANT2BSTR, L"%lld", pvarg->cyVal.int64);
@@ -531,11 +545,19 @@ Variant2Bstr(BSTR *pbstr, VARIANT *pvarg)
       swprintf(wchStr, _LEN_VARIANT2BSTR, L"%u", pvarg->uiVal);
       break;
     case VT_UI4:
-      swprintf(wchStr, _LEN_VARIANT2BSTR, L"%u", pvarg->ulVal);
+      swprintf(wchStr, _LEN_VARIANT2BSTR, L"%lu", pvarg->ulVal);
+      break;
+    case VT_UI8:
+      swprintf(wchStr, _LEN_VARIANT2BSTR, L"%llu", pvarg->ullVal);
+      break;
+    default:
+      hr = DISP_E_BADVARTYPE;
       break;
   }
 
-  *pbstr = SysAllocString(wchStr);
+  if(SUCCEEDED(hr)) {
+    *pbstr = SysAllocString(wchStr);
+  }
 
   return hr;
 }
@@ -550,12 +572,15 @@ static HRESULT
 Bstr2Variant(VARIANT *pvarg, int16_t vt, BSTR bstr)
 {
   HRESULT hr = S_OK;
-  int flag = 0;
-  int16_t sz_bstr;
+  int flag = 0, len;
   char *chRet, *chStr = NULL;
   wchar_t *wchRet;
   struct tm tmVal;
   VARIANT vntTmp;
+
+  if(*bstr == L'\0') {
+    return DISP_E_TYPEMISMATCH;
+  }
 
   VariantInit(&vntTmp);
 
@@ -564,12 +589,18 @@ Bstr2Variant(VARIANT *pvarg, int16_t vt, BSTR bstr)
   }
 
   switch (vt) {
+    case VT_EMPTY:
+    case VT_NULL:
+      break;
+    case VT_ERROR:
+      hr = DISP_E_TYPEMISMATCH;
+      break;
     case VT_I2:
     case VT_I4:
     case VT_BOOL:
       errno = 0;
       vntTmp.lVal = (int32_t) wcstol(bstr, &wchRet, 0);
-      if (wchRet == bstr) {
+      if ((wchRet == NULL) || ((*wchRet != L'.') && (*wchRet != L'\0'))) {
         hr = DISP_E_TYPEMISMATCH;
       }
       else if (errno == ERANGE) {
@@ -580,10 +611,20 @@ Bstr2Variant(VARIANT *pvarg, int16_t vt, BSTR bstr)
         hr = VariantChangeType(&vntTmp, &vntTmp, 0, vt);
       }
       break;
+    case VT_I8:
+      errno = 0;
+      vntTmp.llVal = (int64_t) wcstoll(bstr, &wchRet, 0);
+      if ((wchRet == NULL) || ((*wchRet != L'.') && (*wchRet != L'\0'))) {
+        hr = DISP_E_TYPEMISMATCH;
+      }
+      else if (errno == ERANGE) {
+        hr = DISP_E_OVERFLOW;
+      }
+      break;
     case VT_R4:
       errno = 0;
       vntTmp.fltVal = wcstof(bstr, &wchRet);
-      if (wchRet == bstr) {
+      if ((wchRet == NULL) || (*wchRet != L'\0')) {
         hr = DISP_E_TYPEMISMATCH;
       }
       else if (errno == ERANGE) {
@@ -593,7 +634,7 @@ Bstr2Variant(VARIANT *pvarg, int16_t vt, BSTR bstr)
     case VT_R8:
       errno = 0;
       vntTmp.dblVal = wcstod(bstr, &wchRet);
-      if (wchRet == bstr) {
+      if ((wchRet == NULL) || (*wchRet != L'\0')) {
         hr = DISP_E_TYPEMISMATCH;
       }
       else if (errno == ERANGE) {
@@ -603,7 +644,7 @@ Bstr2Variant(VARIANT *pvarg, int16_t vt, BSTR bstr)
     case VT_CY:
       errno = 0;
       vntTmp.cyVal.int64 = (int64_t) wcstoll(bstr, &wchRet, 0);
-      if (wchRet == bstr) {
+      if ((wchRet == NULL) || ((*wchRet != L'.') && (*wchRet != L'\0'))) {
         hr = DISP_E_TYPEMISMATCH;
       }
       else if (errno == ERANGE) {
@@ -615,7 +656,7 @@ Bstr2Variant(VARIANT *pvarg, int16_t vt, BSTR bstr)
     case VT_UI4:
       errno = 0;
       vntTmp.ulVal = (uint32_t) wcstoul(bstr, &wchRet, 0);
-      if (wchRet == bstr) {
+      if ((wchRet == NULL) || ((*wchRet != L'.') && (*wchRet != L'\0'))) {
         hr = DISP_E_TYPEMISMATCH;
       }
       else if (errno == ERANGE) {
@@ -629,24 +670,47 @@ Bstr2Variant(VARIANT *pvarg, int16_t vt, BSTR bstr)
         hr = DISP_E_OVERFLOW;
       }
       break;
+    case VT_UI8:
+      errno = 0;
+      vntTmp.ullVal = (uint64_t) wcstoull(bstr, &wchRet, 0);
+      if ((wchRet == NULL) || ((*wchRet != L'.') && (*wchRet != L'\0'))) {
+        hr = DISP_E_TYPEMISMATCH;
+      }
+      else if (errno == ERANGE) {
+        hr = DISP_E_OVERFLOW;
+      }
+      else if (*bstr == L'-') {
+        hr = DISP_E_OVERFLOW;
+      }
+      break;
     case VT_DATE:
-      sz_bstr = SysStringLen(bstr);
-      chStr = (char *) malloc(sz_bstr + 1);
-      if (chStr == NULL) {
+      len = wcstombs(NULL, bstr, 0) + 1;
+      if(len <= 0) {
+        hr = DISP_E_TYPEMISMATCH;
+        break;
+      }
+
+      chStr = (char *) malloc(len);
+      if(chStr == NULL) {
         hr = E_OUTOFMEMORY;
         break;
       }
-      wcstombs(chStr, bstr, sz_bstr);
+
+      wcstombs(chStr, bstr, len);
       memset(&tmVal, 0, sizeof(struct tm));
       chRet = strptime(chStr, FORMAT_DATE2BSTR, &tmVal);
-      if (chRet == NULL) {
+      if ((chRet == NULL) || (*chRet != '\0')) {
         hr = DISP_E_TYPEMISMATCH;
       } else {
         vntTmp.date = mktime(&tmVal);
       }
       free(chStr);
       break;
+    default:
+      hr = DISP_E_BADVARTYPE;
+      break;
   }
+  errno = 0;
 
   if (SUCCEEDED(hr)) {
     *pvarg = vntTmp;
@@ -679,25 +743,6 @@ VariantChangeType(VARIANT *pvargDest, VARIANT *pvarSrc, uint16_t wFlags,
     return E_INVALIDARG;
   }
 
-  switch (vt) {
-    case VT_EMPTY:
-    case VT_NULL:
-    case VT_I2:
-    case VT_I4:
-    case VT_R4:
-    case VT_R8:
-    case VT_CY:
-    case VT_DATE:
-    case VT_BSTR:
-    case VT_BOOL:
-    case VT_UI1:
-    case VT_UI2:
-    case VT_UI4:
-      break;
-    default:
-      return DISP_E_BADVARTYPE;
-  }
-
   if (pvargDest != pvarSrc) {
     VariantClear(pvargDest);
     if (vt == pvarSrc->vt) {
@@ -709,449 +754,164 @@ VariantChangeType(VARIANT *pvargDest, VARIANT *pvarSrc, uint16_t wFlags,
     }
   }
 
+#define CheckOverflow(typeDst, typeSrc) \
+  ((sizeof(typeDst) < sizeof(typeSrc)) \
+      || (pvarSrc->vt == VT_R4) \
+      || (pvarSrc->vt == VT_R8))
+
+#define IsUnsigned \
+  ((pvarSrc->vt == VT_UI1) \
+      || (pvarSrc->vt == VT_UI2) \
+      || (pvarSrc->vt == VT_UI4) \
+      || (pvarSrc->vt == VT_UI8))
+
+#define SubChangeType(type, val, chk) \
+  switch (vt) { \
+    case VT_EMPTY: \
+    case VT_NULL: \
+      memset(pvargDest, 0, sizeof(VARIANT)); \
+      break; \
+    case VT_ERROR: \
+      return DISP_E_TYPEMISMATCH; \
+      break; \
+    case VT_I2: \
+      if(chk) { if(CheckOverflow(int16_t, type) \
+          && ((!IsUnsigned && ((val) < (type)SHRT_MIN)) \
+              || ((type)SHRT_MAX < (val)))) { \
+        return DISP_E_OVERFLOW; \
+      } } \
+      pvargDest->iVal = (int16_t)(val); \
+      break; \
+    case VT_I4: \
+      if(chk) { if(CheckOverflow(int32_t, type) \
+          && ((!IsUnsigned && ((val) < (type)LONG_MIN)) \
+              || ((type)LONG_MAX < (val)))) { \
+        return DISP_E_OVERFLOW; \
+      } } \
+      pvargDest->lVal = (int32_t)(val); \
+      break; \
+    case VT_I8: \
+      if(chk) { if(CheckOverflow(int64_t, type) \
+          && ((!IsUnsigned && ((val) < (type)LLONG_MIN)) \
+              || ((type)LLONG_MAX < (val)))) { \
+        return DISP_E_OVERFLOW; \
+      } } \
+      pvargDest->llVal = (int64_t)(val); \
+      break; \
+    case VT_R4: \
+      if(chk) { if((pvarSrc->vt == VT_R8) \
+          && (((val) < (double)-FLT_MAX) \
+              || ((double)FLT_MAX < (val)))) { \
+        return DISP_E_OVERFLOW; \
+      } } \
+      pvargDest->fltVal = (float)(val); \
+      break; \
+    case VT_R8: \
+      pvargDest->dblVal = (double)(val); \
+      break; \
+    case VT_CY: \
+      if(chk) { if(CheckOverflow(int64_t, type) \
+          && ((!IsUnsigned && ((val) < (type)LLONG_MIN)) \
+              || ((type)LLONG_MAX < (val)))) { \
+        return DISP_E_OVERFLOW; \
+      } } \
+      pvargDest->cyVal.int64 = (int64_t)(val); \
+      break; \
+    case VT_DATE: \
+      pvargDest->date = (DATE)(val); \
+      break; \
+    case VT_BSTR: \
+      hr = Variant2Bstr(&pvargDest->bstrVal, pvarSrc); \
+      break;\
+    case VT_BOOL: \
+      pvargDest->boolVal = ((val) ? VARIANT_TRUE : VARIANT_FALSE); \
+      break; \
+    case VT_UI1: \
+      if(chk) { if(((val) < (type)0) || \
+          (CheckOverflow(uint8_t, type) && ((type)USHRT_MAX < (val)))) { \
+        return DISP_E_OVERFLOW; \
+      } } \
+      pvargDest->bVal = (uint8_t)(val); \
+      break; \
+    case VT_UI2: \
+      if(chk) { if(((pvarSrc->vt != VT_I2) && ((val) < (type)0)) || \
+          (CheckOverflow(uint16_t, type) && ((type)USHRT_MAX < (val)))) { \
+        return DISP_E_OVERFLOW; \
+      } } \
+      pvargDest->uiVal = (uint16_t)(val); \
+      break; \
+    case VT_UI4: \
+      if(chk) { if(((pvarSrc->vt != VT_I4) && ((val) < (type)0)) || \
+          (CheckOverflow(uint32_t, type) && ((type)ULONG_MAX < (val)))) { \
+        return DISP_E_OVERFLOW; \
+      } } \
+      pvargDest->ulVal = (uint32_t)(val); \
+      break; \
+    case VT_UI8: \
+      if(chk) { if(((pvarSrc->vt != VT_I8) && ((val) < (type)0)) || \
+          (CheckOverflow(uint64_t, type) && ((type)ULLONG_MAX < (val)))) { \
+        return DISP_E_OVERFLOW; \
+      } } \
+      pvargDest->ullVal = (uint64_t)(val); \
+      break; \
+    default: \
+      return DISP_E_BADVARTYPE; \
+  }
+
   switch (pvarSrc->vt) {
     case VT_EMPTY:
-    case VT_NULL:
-      memset(pvargDest, 0, sizeof(VARIANT));
-      break;
-    case VT_I2:
       switch (vt) {
-        case VT_I4:
-          pvargDest->lVal = pvarSrc->iVal;
-          break;
-        case VT_R4:
-          pvargDest->fltVal = (float) pvarSrc->iVal;
-          break;
-        case VT_R8:
-          pvargDest->dblVal = (double) pvarSrc->iVal;
-          break;
-        case VT_CY:
-          pvargDest->cyVal.int64 = pvarSrc->iVal;
-          break;
-        case VT_DATE:
-          pvargDest->date = (DATE) pvarSrc->iVal;
-          break;
         case VT_BSTR:
-          hr = Variant2Bstr(&pvargDest->bstrVal, pvarSrc);
+          pvargDest->bstrVal = SysAllocString(L"");
           break;
-        case VT_BOOL:
-          pvargDest->boolVal = (pvarSrc->iVal ? VARIANT_TRUE : VARIANT_FALSE);
-          break;
-        case VT_UI1:
-          if ((pvarSrc->iVal < 0) || (256 <= pvarSrc->iVal)) {
-            return DISP_E_OVERFLOW;
-          }
-          pvargDest->bVal = (uint8_t) pvarSrc->iVal;
-          break;
-        case VT_UI2:
-          pvargDest->uiVal = (uint16_t) pvarSrc->iVal;
-          break;
-        case VT_UI4:
-          pvargDest->ulVal = (uint32_t) pvarSrc->iVal;
+        case VT_ERROR:
+          return DISP_E_TYPEMISMATCH;
+        default:
+          memset(pvargDest, 0, sizeof(VARIANT));
           break;
       }
+      break;
+    case VT_NULL:
+    case VT_ERROR:
+      return DISP_E_TYPEMISMATCH;
+    case VT_I2:
+      SubChangeType(int16_t, pvarSrc->iVal, 1);
       break;
     case VT_I4:
-      switch (vt) {
-        case VT_I2:
-          if ((pvarSrc->lVal < -32768) || (32768 <= pvarSrc->lVal)) {
-            return DISP_E_OVERFLOW;
-          }
-          pvargDest->iVal = (int16_t) pvarSrc->lVal;
-          break;
-        case VT_R4:
-          pvargDest->fltVal = (float) pvarSrc->lVal;
-          break;
-        case VT_R8:
-          pvargDest->dblVal = (double) pvarSrc->lVal;
-          break;
-        case VT_CY:
-          pvargDest->cyVal.int64 = pvarSrc->lVal;
-          break;
-        case VT_DATE:
-          pvargDest->date = (DATE) pvarSrc->lVal;
-          break;
-        case VT_BSTR:
-          hr = Variant2Bstr(&pvargDest->bstrVal, pvarSrc);
-          break;
-        case VT_BOOL:
-          pvargDest->boolVal = (pvarSrc->lVal ? VARIANT_TRUE : VARIANT_FALSE);
-          break;
-        case VT_UI1:
-          if ((pvarSrc->lVal < 0) || (256 <= pvarSrc->lVal)) {
-            return DISP_E_OVERFLOW;
-          }
-          pvargDest->bVal = (uint8_t) pvarSrc->lVal;
-          break;
-        case VT_UI2:
-          if ((pvarSrc->lVal < 0) || (65536 <= pvarSrc->lVal)) {
-            return DISP_E_OVERFLOW;
-          }
-          pvargDest->uiVal = (uint16_t) pvarSrc->lVal;
-          break;
-        case VT_UI4:
-          pvargDest->ulVal = (uint32_t) pvarSrc->lVal;
-          break;
-      }
+      SubChangeType(int32_t, pvarSrc->lVal, 1);
+      break;
+    case VT_I8:
+      SubChangeType(int64_t, pvarSrc->llVal, 1);
       break;
     case VT_R4:
-      switch (vt) {
-        case VT_I2:
-          if ((pvarSrc->fltVal < -32768.0f) || (32768.0f <= pvarSrc->fltVal)) {
-            return DISP_E_OVERFLOW;
-          }
-          pvargDest->iVal = (int16_t) pvarSrc->fltVal;
-          break;
-        case VT_I4:
-          if ((pvarSrc->fltVal < -2147483648.0f)
-              || (2147483648.0f <= pvarSrc->fltVal)) {
-            return DISP_E_OVERFLOW;
-          }
-          pvargDest->lVal = (int32_t) pvarSrc->fltVal;
-          break;
-        case VT_R8:
-          pvargDest->dblVal = (double) pvarSrc->fltVal;
-          break;
-        case VT_CY:
-          if ((pvarSrc->fltVal < -9223372036854775808.0f)
-              || (9223372036854775808.0f <= pvarSrc->fltVal)) {
-            return DISP_E_OVERFLOW;
-          }
-          pvargDest->cyVal.int64 = (int64_t) pvarSrc->fltVal;
-          break;
-        case VT_DATE:
-          pvargDest->date = (DATE) pvarSrc->fltVal;
-          break;
-        case VT_BSTR:
-          hr = Variant2Bstr(&pvargDest->bstrVal, pvarSrc);
-          break;
-        case VT_BOOL:
-          pvargDest->boolVal = (pvarSrc->fltVal ? VARIANT_TRUE : VARIANT_FALSE);
-          break;
-        case VT_UI1:
-          if ((pvarSrc->fltVal < 0.0f) || (256.0f <= pvarSrc->fltVal)) {
-            return DISP_E_OVERFLOW;
-          }
-          pvargDest->bVal = (uint8_t) pvarSrc->fltVal;
-          break;
-        case VT_UI2:
-          if ((pvarSrc->fltVal < 0.0f) || (65536.0f <= pvarSrc->fltVal)) {
-            return DISP_E_OVERFLOW;
-          }
-          pvargDest->uiVal = (uint16_t) pvarSrc->fltVal;
-          break;
-        case VT_UI4:
-          if ((pvarSrc->fltVal < 0.0f) || (4294967296.0f <= pvarSrc->fltVal)) {
-            return DISP_E_OVERFLOW;
-          }
-          pvargDest->ulVal = (uint32_t) pvarSrc->fltVal;
-          break;
-      }
+      SubChangeType(float, pvarSrc->fltVal, 1);
       break;
     case VT_R8:
-      switch (vt) {
-        case VT_I2:
-          if ((pvarSrc->dblVal < -32768.0) || (32768.0 <= pvarSrc->dblVal)) {
-            return DISP_E_OVERFLOW;
-          }
-          pvargDest->iVal = (int16_t) pvarSrc->dblVal;
-          break;
-        case VT_I4:
-          if ((pvarSrc->dblVal < -2147483648.0)
-              || (2147483648.0 <= pvarSrc->dblVal)) {
-            return DISP_E_OVERFLOW;
-          }
-          pvargDest->lVal = (int32_t) pvarSrc->dblVal;
-          break;
-        case VT_R4:
-          pvargDest->fltVal = (float) pvarSrc->dblVal;
-          break;
-        case VT_CY:
-          if ((pvarSrc->dblVal < -9223372036854775808.0)
-              || (9223372036854775808.0 <= pvarSrc->dblVal)) {
-            return DISP_E_OVERFLOW;
-          }
-          pvargDest->cyVal.int64 = (int64_t) pvarSrc->dblVal;
-          break;
-        case VT_DATE:
-          pvargDest->date = (DATE) pvarSrc->dblVal;
-          break;
-        case VT_BSTR:
-          hr = Variant2Bstr(&pvargDest->bstrVal, pvarSrc);
-          break;
-        case VT_BOOL:
-          pvargDest->boolVal = (pvarSrc->dblVal ? VARIANT_TRUE : VARIANT_FALSE);
-          break;
-        case VT_UI1:
-          if ((pvarSrc->dblVal < 0.0f) || (256.0f <= pvarSrc->dblVal)) {
-            return DISP_E_OVERFLOW;
-          }
-          pvargDest->bVal = (uint8_t) pvarSrc->dblVal;
-          break;
-        case VT_UI2:
-          if ((pvarSrc->dblVal < 0.0f) || (65536.0f <= pvarSrc->dblVal)) {
-            return DISP_E_OVERFLOW;
-          }
-          pvargDest->uiVal = (uint16_t) pvarSrc->dblVal;
-          break;
-        case VT_UI4:
-          if ((pvarSrc->dblVal < 0.0f) || (4294967296.0f <= pvarSrc->dblVal)) {
-            return DISP_E_OVERFLOW;
-          }
-          pvargDest->ulVal = (uint32_t) pvarSrc->dblVal;
-          break;
-      }
+      SubChangeType(double, pvarSrc->dblVal, 1);
       break;
     case VT_CY:
-      switch (vt) {
-        case VT_I2:
-          if ((pvarSrc->cyVal.int64 < -32768) || (32768 <= pvarSrc->cyVal.int64)) {
-            return DISP_E_OVERFLOW;
-          }
-          pvargDest->iVal = (int16_t) pvarSrc->cyVal.int64;
-          break;
-        case VT_I4:
-          if ((pvarSrc->cyVal.int64 < -2147483648LL)
-              || (2147483648LL <= pvarSrc->cyVal.int64)) {
-            return DISP_E_OVERFLOW;
-          }
-          pvargDest->lVal = (int32_t) pvarSrc->cyVal.int64;
-          break;
-        case VT_R4:
-          pvargDest->fltVal = (float) pvarSrc->cyVal.int64;
-          break;
-        case VT_R8:
-          pvargDest->dblVal = (double) pvarSrc->cyVal.int64;
-          break;
-        case VT_DATE:
-          pvargDest->date = (DATE) pvarSrc->cyVal.int64;
-          break;
-        case VT_BSTR:
-          hr = Variant2Bstr(&pvargDest->bstrVal, pvarSrc);
-          break;
-        case VT_BOOL:
-          pvargDest->boolVal =
-              (pvarSrc->cyVal.int64 ? VARIANT_TRUE : VARIANT_FALSE);
-          break;
-        case VT_UI1:
-          if ((pvarSrc->cyVal.int64 < 0) || (256 <= pvarSrc->cyVal.int64)) {
-            return DISP_E_OVERFLOW;
-          }
-          pvargDest->bVal = (uint8_t) pvarSrc->cyVal.int64;
-          break;
-        case VT_UI2:
-          if ((pvarSrc->cyVal.int64 < 0) || (65536 <= pvarSrc->cyVal.int64)) {
-            return DISP_E_OVERFLOW;
-          }
-          pvargDest->uiVal = (uint16_t) pvarSrc->cyVal.int64;
-          break;
-        case VT_UI4:
-          if ((pvarSrc->cyVal.int64 < 0) || (4294967296LL <= pvarSrc->cyVal.int64)) {
-            return DISP_E_OVERFLOW;
-          }
-          pvargDest->ulVal = (uint32_t) pvarSrc->cyVal.int64;
-          break;
-      }
+      SubChangeType(int64_t, pvarSrc->cyVal.int64, 1);
       break;
     case VT_DATE:
-      switch (vt) {
-        case VT_I2:
-          if ((pvarSrc->date < -32768) || (32768 <= pvarSrc->date)) {
-            return DISP_E_OVERFLOW;
-          }
-          pvargDest->iVal = (int16_t) pvarSrc->date;
-          break;
-        case VT_I4:
-          if ((pvarSrc->date < -2147483648LL) || (2147483648LL <= pvarSrc->date)) {
-            return DISP_E_OVERFLOW;
-          }
-          pvargDest->lVal = (int32_t) pvarSrc->date;
-          break;
-        case VT_R4:
-          pvargDest->fltVal = (float) pvarSrc->date;
-          break;
-        case VT_R8:
-          pvargDest->dblVal = (double) pvarSrc->date;
-          break;
-        case VT_CY:
-          pvargDest->cyVal.int64 = (int64_t) pvarSrc->date;
-          break;
-        case VT_BSTR:
-          hr = Variant2Bstr(&pvargDest->bstrVal, pvarSrc);
-          break;
-        case VT_BOOL:
-          pvargDest->boolVal = (pvarSrc->date ? VARIANT_TRUE : VARIANT_FALSE);
-          break;
-        case VT_UI1:
-          if ((pvarSrc->date < 0) || (256 <= pvarSrc->date)) {
-            return DISP_E_OVERFLOW;
-          }
-          pvargDest->bVal = (uint8_t) pvarSrc->date;
-          break;
-        case VT_UI2:
-          if ((pvarSrc->date < 0) || (65536 <= pvarSrc->date)) {
-            return DISP_E_OVERFLOW;
-          }
-          pvargDest->uiVal = (uint16_t) pvarSrc->date;
-          break;
-        case VT_UI4:
-          if ((pvarSrc->date < 0) || (4294967296LL <= pvarSrc->date)) {
-            return DISP_E_OVERFLOW;
-          }
-          pvargDest->ulVal = (uint32_t) pvarSrc->date;
-          break;
-      }
+      SubChangeType(DATE, pvarSrc->date, 1);
       break;
     case VT_BSTR:
       hr = Bstr2Variant(pvargDest, vt, pvarSrc->bstrVal);
       break;
     case VT_BOOL:
-      switch (vt) {
-        case VT_I2:
-          pvargDest->iVal = pvarSrc->boolVal;
-          break;
-        case VT_I4:
-          pvargDest->lVal = pvarSrc->boolVal;
-          break;
-        case VT_R4:
-          pvargDest->fltVal = (float) pvarSrc->boolVal;
-          break;
-        case VT_R8:
-          pvargDest->dblVal = (double) pvarSrc->boolVal;
-          break;
-        case VT_CY:
-          pvargDest->cyVal.int64 = pvarSrc->boolVal;
-          break;
-        case VT_DATE:
-          pvargDest->date = (DATE) pvarSrc->boolVal;
-          break;
-        case VT_BSTR:
-          hr = Variant2Bstr(&pvargDest->bstrVal, pvarSrc);
-          break;
-        case VT_UI1:
-          pvargDest->bVal = (uint8_t) pvarSrc->boolVal;
-          break;
-        case VT_UI2:
-          pvargDest->uiVal = (uint16_t) pvarSrc->boolVal;
-          break;
-        case VT_UI4:
-          pvargDest->ulVal = (uint32_t) pvarSrc->boolVal;
-          break;
-      }
+      SubChangeType(VARIANT_BOOL, pvarSrc->boolVal, 0);
       break;
     case VT_UI1:
-      switch (vt) {
-        case VT_I2:
-          pvargDest->iVal = (int16_t) pvarSrc->bVal;
-          break;
-        case VT_I4:
-          pvargDest->lVal = (int32_t) pvarSrc->bVal;
-          break;
-        case VT_R4:
-          pvargDest->fltVal = (float) pvarSrc->bVal;
-          break;
-        case VT_R8:
-          pvargDest->dblVal = (double) pvarSrc->bVal;
-          break;
-        case VT_CY:
-          pvargDest->cyVal.int64 = (int64_t) pvarSrc->bVal;
-          break;
-        case VT_DATE:
-          pvargDest->date = (DATE) pvarSrc->bVal;
-          break;
-        case VT_BSTR:
-          hr = Variant2Bstr(&pvargDest->bstrVal, pvarSrc);
-          break;
-        case VT_BOOL:
-          pvargDest->boolVal = (pvarSrc->bVal ? VARIANT_TRUE : VARIANT_FALSE);
-          break;
-        case VT_UI2:
-          pvargDest->uiVal = pvarSrc->bVal;
-          break;
-        case VT_UI4:
-          pvargDest->ulVal = pvarSrc->bVal;
-          break;
-      }
+      SubChangeType(uint8_t, pvarSrc->bVal, 1);
       break;
     case VT_UI2:
-      switch (vt) {
-        case VT_I2:
-          pvargDest->iVal = (int16_t) pvarSrc->uiVal;
-          break;
-        case VT_I4:
-          pvargDest->lVal = (int32_t) pvarSrc->uiVal;
-          break;
-        case VT_R4:
-          pvargDest->fltVal = (float) pvarSrc->uiVal;
-          break;
-        case VT_R8:
-          pvargDest->dblVal = (double) pvarSrc->uiVal;
-          break;
-        case VT_CY:
-          pvargDest->cyVal.int64 = (int64_t) pvarSrc->uiVal;
-          break;
-        case VT_DATE:
-          pvargDest->date = (DATE) pvarSrc->uiVal;
-          break;
-        case VT_BSTR:
-          hr = Variant2Bstr(&pvargDest->bstrVal, pvarSrc);
-          break;
-        case VT_BOOL:
-          pvargDest->boolVal = (pvarSrc->uiVal ? VARIANT_TRUE : VARIANT_FALSE);
-          break;
-        case VT_UI1:
-          if (256 <= pvarSrc->uiVal) {
-            return DISP_E_OVERFLOW;
-          }
-          pvargDest->bVal = (uint8_t) pvarSrc->uiVal;
-          break;
-        case VT_UI4:
-          pvargDest->ulVal = pvarSrc->uiVal;
-          break;
-      }
+      SubChangeType(uint16_t, pvarSrc->uiVal, 1);
       break;
     case VT_UI4:
-      switch (vt) {
-        case VT_I2:
-          if (32768 <= pvarSrc->ulVal) {
-            return DISP_E_OVERFLOW;
-          }
-          pvargDest->iVal = (int16_t) pvarSrc->ulVal;
-          break;
-        case VT_I4:
-          pvargDest->lVal = (int32_t) pvarSrc->ulVal;
-          break;
-        case VT_R4:
-          pvargDest->fltVal = (float) pvarSrc->ulVal;
-          break;
-        case VT_R8:
-          pvargDest->dblVal = (double) pvarSrc->ulVal;
-          break;
-        case VT_CY:
-          pvargDest->cyVal.int64 = (int64_t) pvarSrc->ulVal;
-          break;
-        case VT_DATE:
-          pvargDest->date = (DATE) pvarSrc->ulVal;
-          break;
-        case VT_BSTR:
-          hr = Variant2Bstr(&pvargDest->bstrVal, pvarSrc);
-          break;
-        case VT_BOOL:
-          pvargDest->boolVal = (pvarSrc->ulVal ? VARIANT_TRUE : VARIANT_FALSE);
-          break;
-        case VT_UI1:
-          if (256 <= pvarSrc->ulVal) {
-            return DISP_E_OVERFLOW;
-          }
-          pvargDest->bVal = (uint8_t) pvarSrc->ulVal;
-          break;
-        case VT_UI2:
-          if (65536 <= pvarSrc->ulVal) {
-            return DISP_E_OVERFLOW;
-          }
-          pvargDest->uiVal = (uint16_t) pvarSrc->ulVal;
-          break;
-      }
+      SubChangeType(uint32_t, pvarSrc->ulVal, 1);
+      break;
+    case VT_UI8:
+      SubChangeType(uint64_t, pvarSrc->ullVal, 1);
       break;
     default:
       return DISP_E_BADVARTYPE;
@@ -1189,41 +949,9 @@ ChangeVarType(VARIANT varSrc, uint16_t vt, void *pDest, uint32_t dwSize)
   VariantInit(&vntTmp);
 
   if (varSrc.vt & VT_ARRAY) {
-    int32_t i, lEleSize, lMax =
+    int32_t i, lMax =
         (int32_t) varSrc.parray->rgsabound[0].cElements;
     void *pVal, *pPos = pDest;
-
-    switch (vt) {
-      case VT_UI1:
-        lEleSize = 1;
-        break;
-      case VT_I2:
-      case VT_UI2:
-      case VT_BOOL:
-        lEleSize = 2;
-        break;
-      case VT_I4:
-      case VT_UI4:
-      case VT_R4:
-        lEleSize = 4;
-        break;
-      case VT_R8:
-      case VT_CY:
-        lEleSize = 8;
-        break;
-      case VT_DATE:
-        lEleSize = sizeof(DATE);
-        break;
-      case VT_BSTR:
-        lEleSize = sizeof(BSTR);
-        break;
-      case VT_VARIANT:
-        lEleSize = sizeof(VARIANT);
-        break;
-      default:
-        dwCnt = 0;
-        goto exit_proc;
-    }
 
     SafeArrayAccessData(varSrc.parray, &pVal);
     for (i = 0; i < lMax; i++) {
@@ -1236,6 +964,10 @@ ChangeVarType(VARIANT varSrc, uint16_t vt, void *pDest, uint32_t dwSize)
         case VT_I4:
           vntTmp.vt = VT_I4;
           vntTmp.lVal = *((int32_t *) pVal + i);
+          break;
+        case VT_I8:
+          vntTmp.vt = VT_I8;
+          vntTmp.llVal = *((int64_t *) pVal + i);
           break;
         case VT_R4:
           vntTmp.vt = VT_R4;
@@ -1276,6 +1008,10 @@ ChangeVarType(VARIANT varSrc, uint16_t vt, void *pDest, uint32_t dwSize)
           vntTmp.vt = VT_UI4;
           vntTmp.ulVal = *((uint32_t *) pVal + i);
           break;
+        case VT_UI8:
+          vntTmp.vt = VT_UI8;
+          vntTmp.ullVal = *((uint64_t *) pVal + i);
+          break;
         default:
           hr = E_INVALIDARG;
           break;
@@ -1303,7 +1039,7 @@ ChangeVarType(VARIANT varSrc, uint16_t vt, void *pDest, uint32_t dwSize)
       }
 
       dwCnt += dwRet;
-      pPos = ((char *) pPos + lEleSize);
+      pPos = ((char *) pPos + varSrc.parray->cbElements);
 
       if (dwCnt >= dwSize) {
         break;
@@ -1327,6 +1063,9 @@ ChangeVarType(VARIANT varSrc, uint16_t vt, void *pDest, uint32_t dwSize)
         break;
       case VT_I4:
         *(int32_t *) pDest = vntTmp.lVal;
+        break;
+      case VT_I8:
+        *(int64_t *) pDest = vntTmp.llVal;
         break;
       case VT_R4:
         *(float *) pDest = vntTmp.fltVal;
@@ -1357,6 +1096,9 @@ ChangeVarType(VARIANT varSrc, uint16_t vt, void *pDest, uint32_t dwSize)
         break;
       case VT_UI4:
         *(uint32_t *) pDest = vntTmp.ulVal;
+        break;
+      case VT_UI8:
+        *(uint64_t *) pDest = vntTmp.ullVal;
         break;
       default:
         dwCnt = 0;
@@ -1428,6 +1170,8 @@ GetOptionValue(BSTR bstrSrc, BSTR bstrKey, uint16_t vt, VARIANT *pvarDest)
         case L'>':
           wchStart = L'<';
           wchEnd = L'>';
+          break;
+        default:
           break;
       }
     }
@@ -1574,3 +1318,71 @@ GetOptionValue(BSTR bstrSrc, BSTR bstrKey, uint16_t vt, VARIANT *pvarDest)
   return hr;
 }
 #endif /* _DN_USE_VARIANT_API */
+
+#if (_DN_USE_BSTR_API)
+/**
+ * @fn         wchar_t* ConvertMultiByte2WideChar(const char* chSrc)
+ * @brief      Converts string to wide string.
+ * @param[in]  chSrc The source string.
+ */
+wchar_t*
+ConvertMultiByte2WideChar(const char* chSrc)
+{
+  wchar_t* chDest = NULL;
+
+  if(chSrc != NULL) {
+#ifdef _USE_WIN_API
+    int iLen = MultiByteToWideChar(CP_ACP, 0, chSrc, -1, NULL, 0);
+    if(iLen > 0) {
+      chDest = (wchar_t*)malloc(sizeof(wchar_t)*iLen);
+      if(chDest == NULL) return NULL;
+      MultiByteToWideChar(CP_ACP, 0, chSrc, -1, chDest, iLen);
+    }
+#else
+    char* locale = setlocale(LC_ALL, setlocale(LC_CTYPE, ""));
+    int iLen = mbstowcs(NULL, chSrc, 0) + 1;
+    if(iLen > 0) {
+      chDest = (wchar_t*)malloc(sizeof(wchar_t)*iLen);
+      if(chDest == NULL) return NULL;
+      mbstowcs(chDest, chSrc, iLen);
+    }
+    setlocale(LC_ALL, locale);
+#endif
+  }
+
+  return chDest;  
+}
+
+/**
+ * @fn         char* ConvertWideChar2MultiByte(const wchar_t* chSrc)
+ * @brief      Converts wide string to string.
+ * @param[in]  chSrc The source string.
+ */
+char*
+ConvertWideChar2MultiByte(const wchar_t* chSrc)
+{
+  char* chDest = NULL;
+
+  if(chSrc != NULL) {
+#ifdef _USE_WIN_API
+    int iLen = WideCharToMultiByte(CP_ACP, 0, chSrc, -1, NULL, 0, NULL, NULL);
+    if(iLen > 0) {
+      chDest = (char*)malloc(iLen);
+      if(chDest == NULL) return NULL;
+      WideCharToMultiByte(CP_ACP, 0, chSrc, -1, chDest, iLen, NULL, NULL);
+    }
+#else
+    char* locale = setlocale(LC_ALL, setlocale(LC_CTYPE, ""));
+    int iLen = wcstombs(NULL, chSrc, 0) + 1;
+    if(iLen > 0) {
+      chDest = (char*)malloc(iLen);
+      if(chDest == NULL) return NULL;
+      wcstombs(chDest, chSrc, iLen);
+    }
+    setlocale(LC_ALL, locale);
+#endif
+  }
+
+  return chDest;
+}
+#endif /* _DN_USE_BSTR_API */

@@ -32,16 +32,19 @@
 #elif defined(_USE_LINUX_API)
 #include <arpa/inet.h>
 #include <errno.h>
+#include <fcntl.h>
 #include <netinet/tcp.h>
 #include <sys/socket.h>
 #else
-#include "denso_communication/dn_additional.h"
+#include "dn_additional.h"
 #endif
 
 #include "dn_common.h"
 #include "dn_device.h"
 #include "dn_socket.h"
 #include "dn_tcp.h"
+
+uint32_t tcp_conn_timeout;
 
 #if defined(_USE_WIN_API)
 static HRESULT _tcp_set_keepalive(int sock, int enable, uint32_t idle, uint32_t interval, uint32_t count)
@@ -107,25 +110,136 @@ tcp_open_client(void *param, int *sock)
   HRESULT hr;
   struct sockaddr_in server;
   const struct CONN_PARAM_ETH *eth_param = (const struct CONN_PARAM_ETH *) param;
+#if defined(_USE_WIN_API)
+  WSAEVENT connevt = NULL;
+  WSANETWORKEVENTS events;
+#else
+  int funcval = 0;
+  fd_set fds;
+  struct timeval tv;
+#endif
 
-  if (param == NULL || sock == NULL)
-    return E_INVALIDARG;
+  if (param == NULL || sock == NULL) {
+    hr = E_INVALIDARG;
+    goto exit_proc;
+  }
 
   hr = socket_open(SOCK_STREAM, sock);
-  if (FAILED(hr))
-    return hr;
+  if (FAILED(hr)) {
+    goto exit_proc;
+  }
 
   memset(&server, 0, sizeof(server));
   server.sin_addr.s_addr = eth_param->dst_addr;
   server.sin_port = eth_param->dst_port;
   server.sin_family = AF_INET;
 
+  if(tcp_conn_timeout > 0) {
+#if defined(_USE_WIN_API)
+    connevt = WSACreateEvent();
+    if(connevt == WSA_INVALID_EVENT) {
+      hr = OSERR2HRESULT(WSAGetLastError());
+      goto exit_proc;
+    }
+    ret = WSAEventSelect(*sock, connevt, FD_CONNECT);
+    if(ret == SOCKET_ERROR) {
+      hr = OSERR2HRESULT(WSAGetLastError());
+      goto exit_proc;
+    }
+#else
+    funcval = fcntl(*sock, F_GETFL, 0);
+    if(funcval < 0) {
+      hr = OSERR2HRESULT(DNGetLastError());
+      goto exit_proc;
+    }
+    ret = fcntl(*sock, F_SETFL, funcval | O_NONBLOCK);
+    if(ret < 0) {
+      hr = OSERR2HRESULT(DNGetLastError());
+      goto exit_proc;
+    }
+#endif
+  }
+
   ret = connect(*sock, (struct sockaddr *) &server, sizeof(server));
   if (ret < 0) {
+#if defined(_USE_WIN_API)
+    ret = WSAGetLastError();
+    if(ret != WSAEWOULDBLOCK) {
+      hr = OSERR2HRESULT(ret);
+      goto exit_proc;
+    }
+
+    ret = WSAWaitForMultipleEvents(1, &connevt,
+        FALSE, tcp_conn_timeout, FALSE);
+    if (ret != WSA_WAIT_EVENT_0) {
+      if (ret == WSA_WAIT_TIMEOUT) {
+        hr = E_TIMEOUT;
+      } else {
+        hr = OSERR2HRESULT(WSAGetLastError());
+      }
+      goto exit_proc;
+    }
+
+    ret = WSAEnumNetworkEvents(*sock, connevt, &events);
+    if (ret == SOCKET_ERROR) {
+      hr = OSERR2HRESULT(WSAGetLastError());
+      goto exit_proc;
+    }
+    if (!(events.lNetworkEvents & FD_CONNECT)) {
+      hr = E_FAIL;
+      goto exit_proc;
+    }
+    if (events.iErrorCode[FD_CONNECT_BIT] != 0) {
+      hr = OSERR2HRESULT(events.iErrorCode[FD_CONNECT_BIT]);
+      goto exit_proc;
+    }
+#else
     ret = DNGetLastError();
-    socket_close(sock);
-    hr = OSERR2HRESULT(ret);
+    if (ret != EINPROGRESS) {
+      hr = OSERR2HRESULT(ret);
+      goto exit_proc;
+    }
+
+    FD_ZERO(&fds);
+    FD_SET(*sock, &fds);
+
+    tv.tv_sec = tcp_conn_timeout / 1000;
+    tv.tv_usec = (tcp_conn_timeout % 1000) * 1000;
+
+    ret = select(*sock + 1, NULL, &fds, NULL, &tv);
+    if (ret == 0) {
+      hr = E_TIMEOUT;
+      goto exit_proc;
+    }
+    else if (ret < 0) {
+      ret = DNGetLastError();
+      hr = OSERR2HRESULT(ret);
+      goto exit_proc;
+    }
+#endif
   }
+
+exit_proc:
+  if((sock != NULL) && (*sock != 0)) {
+#if defined(_USE_WIN_API)
+    DWORD dwTemp = 0;
+    WSAEventSelect(*sock, NULL, 0);
+    ioctlsocket(*sock, FIONBIO, &dwTemp);
+
+    if(connevt != NULL) {
+      WSACloseEvent(connevt);
+    }
+#else
+    fcntl(*sock, F_SETFL, funcval & ~O_NONBLOCK);
+#endif
+
+    if(FAILED(hr)) {
+      socket_close(sock);
+    }
+  }
+
+  /* Reset connection timeout */
+  tcp_conn_timeout = 0;
 
   return hr;
 }

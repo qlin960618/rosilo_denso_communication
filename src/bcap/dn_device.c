@@ -37,7 +37,7 @@
 #define strnicmp strncasecmp
 #endif
 #else
-#include "denso_communication/dn_additional.h"
+#include "dn_additional.h"
 #endif
 
 #include "dn_common.h"

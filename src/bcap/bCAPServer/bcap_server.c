@@ -394,6 +394,8 @@ change_relation(struct CONN_BCAP_SERVER *own, int mode, int *sock)
               node->device.arg = malloc(sizeof(struct sockaddr_in));
               memcpy(node->device.arg, own->device.arg, sizeof(struct sockaddr_in));
               break;
+            default:
+              break;
           }
 
           node->last_send.args =
@@ -632,6 +634,9 @@ receive_execute(struct CONN_BCAP_SERVER *bcap_param)
         }  
 
         break;
+
+      default:
+        break;
     }
 
     /* Checks execute thread */
@@ -714,6 +719,9 @@ receive_execute(struct CONN_BCAP_SERVER *bcap_param)
           bstrOpt = NULL;
         }
 
+        break;
+
+      default:
         break;
     }
 

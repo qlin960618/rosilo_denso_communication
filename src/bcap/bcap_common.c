@@ -32,7 +32,7 @@
 #if defined(_USE_LINUX_API)
 #include <arpa/inet.h>
 #else
-#include "denso_communication/dn_additional.h"
+#include "dn_additional.h"
 #endif
 
 /**
@@ -96,6 +96,8 @@ bcap_calc_size_variant(const VARIANT *vnt)
           case VT_R4:
             ret = cnt * 4;
             break;
+          case VT_I8:
+          case VT_UI8:
           case VT_R8:
           case VT_CY:
           case VT_DATE:
@@ -122,6 +124,8 @@ bcap_calc_size_variant(const VARIANT *vnt)
             }
             SafeArrayUnaccessData(vnt->parray);
             break;
+          default:
+            break;
         }
       }
     } else {
@@ -140,6 +144,8 @@ bcap_calc_size_variant(const VARIANT *vnt)
         case VT_ERROR:
           ret = 4;
           break;
+        case VT_I8:
+        case VT_UI8:
         case VT_R8:
         case VT_CY:
         case VT_DATE:
@@ -150,6 +156,8 @@ bcap_calc_size_variant(const VARIANT *vnt)
           if (vnt->bstrVal != NULL) {
             ret += BCAP_SIZE_BSTR_BUFFER * SysStringLen(vnt->bstrVal);
           }
+          break;
+        default:
           break;
       }
     }
@@ -240,6 +248,8 @@ bcap_vnt2bytary(const VARIANT *src, uint32_t argc, char *dst, uint32_t len_dst,
         case VT_R4:
           size = 4;
           break;
+        case VT_I8:
+        case VT_UI8:
         case VT_R8:
         case VT_CY:
           size = 8;
@@ -283,6 +293,8 @@ bcap_vnt2bytary(const VARIANT *src, uint32_t argc, char *dst, uint32_t len_dst,
             return hr;
 
           size = 0;
+          break;
+        default:
           break;
       }
 
@@ -331,6 +343,14 @@ bcap_vnt2bytary(const VARIANT *src, uint32_t argc, char *dst, uint32_t len_dst,
         size = 4;
         pdata = &src->scode;
         break;
+      case VT_I8:
+        size = 8;
+        pdata = &src->llVal;
+        break;
+      case VT_UI8:
+        size = 8;
+        pdata = &src->ullVal;
+        break;
       case VT_R8:
         size = 8;
         pdata = &src->dblVal;
@@ -365,6 +385,8 @@ bcap_vnt2bytary(const VARIANT *src, uint32_t argc, char *dst, uint32_t len_dst,
         }
 
         size = 0;
+        break;
+      default:
         break;
     }
 
@@ -537,6 +559,8 @@ bcap_bytary2vnt(const char *src, uint32_t len_src, VARIANT *dst, uint32_t argc,
       case VT_R4:
         size = 4;
         break;
+      case VT_I8:
+      case VT_UI8:
       case VT_R8:
       case VT_CY:
         size = 8;
@@ -584,6 +608,8 @@ bcap_bytary2vnt(const char *src, uint32_t len_src, VARIANT *dst, uint32_t argc,
 
         size = 0;
         break;
+      default:
+        break;
     }
 
     if (size > 0) {
@@ -630,6 +656,14 @@ bcap_bytary2vnt(const char *src, uint32_t len_src, VARIANT *dst, uint32_t argc,
         size = 4;
         pdata = &dst->scode;
         break;
+      case VT_I8:
+        size = 8;
+        pdata = &dst->llVal;
+        break;
+      case VT_UI8:
+        size = 8;
+        pdata = &dst->ullVal;
+        break;
       case VT_R8:
         size = 8;
         pdata = &dst->dblVal;
@@ -668,6 +702,8 @@ bcap_bytary2vnt(const char *src, uint32_t len_src, VARIANT *dst, uint32_t argc,
         }
 
         size = 0;
+        break;
+      default:
         break;
     }
 
