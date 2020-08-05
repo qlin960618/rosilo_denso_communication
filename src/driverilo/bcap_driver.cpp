@@ -201,7 +201,7 @@ inline bool BCAPDriver::_robot_execute(const std::wstring& command, const VARIAN
 {
     BSTR command_bstr = SysAllocString(command.c_str());
 
-    bool return_value =_error_check (bCap_RobotExecute(socket_, robot_handle_, command_bstr, option, &result));
+    bool return_value =_error_check(bCap_RobotExecute(socket_, robot_handle_, command_bstr, option, &result));
 
     SysFreeString(command_bstr);
     return return_value;
@@ -383,10 +383,14 @@ bool BCAPDriver::set_and_get_joint_positions(const std::vector<double>& set_join
 
     bool return_value = _robot_execute(std::wstring(L"slvMove"),request,variant_result);
 
-    double* data_pointer;
-    SafeArrayAccessData(variant_result.parray,(void**)&data_pointer);
-    get_joint_positions_vector.assign(data_pointer,data_pointer+8);
-    SafeArrayUnaccessData(variant_result.parray);
+    //If the return value is false, we don't try to access the data.
+    if(return_value)
+    {
+        double* data_pointer;
+        SafeArrayAccessData(variant_result.parray,(void**)&data_pointer);
+        get_joint_positions_vector.assign(data_pointer,data_pointer+8);
+        SafeArrayUnaccessData(variant_result.parray);
+    }
 
     VariantClear(&request);
     VariantClear(&variant_result);
@@ -450,7 +454,6 @@ bool BCAPDriver::set_end_effector_pose_homogenous_transformation(const std::vect
 
 bool BCAPDriver::set_slave_mode(const int32_t& value, VARIANT& result)
 {
-    //This function is rarely used so it doesn't need to be optimized
     VARIANT argument;
     VariantInit(&argument);
     argument.vt   = VT_I4;

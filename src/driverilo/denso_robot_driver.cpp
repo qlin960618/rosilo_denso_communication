@@ -118,12 +118,16 @@ bool DensoRobotDriver::set_joint_positions(const VectorXd &desired_joint_positio
 }
 
 
-std::tuple<VectorXd, bool> DensoRobotDriver::set_and_get_joint_positions(const VectorXd &desired_joint_positions)
+VectorXd DensoRobotDriver::set_and_get_joint_positions(const VectorXd &desired_joint_positions)
 {
     std::vector<double> set_joint_positions_local_buffer(desired_joint_positions.data(), desired_joint_positions.data() + 6);
-    bool error_code = bCapDriver_.set_and_get_joint_positions(set_joint_positions_local_buffer, joint_positions_buffer_);
+    bool worked = bCapDriver_.set_and_get_joint_positions(set_joint_positions_local_buffer, joint_positions_buffer_);
+    if(!worked)
+    {
+        throw std::runtime_error("FAILED in DensoRobotDriver::set_and_get_joint_positions(). Error in BCAPDriver::" + bCapDriver_.get_last_error_info());
+    }
     Map<VectorXd> joint_positions(joint_positions_buffer_.data(),6);
-    return std::make_tuple(joint_positions, error_code);
+    return joint_positions;
 }
 
 VectorXd DensoRobotDriver::_dq_to_homogenous_vector(const DQ& pose) const

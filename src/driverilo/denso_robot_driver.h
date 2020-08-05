@@ -71,7 +71,7 @@ public:
     std::tuple<DQ, bool> get_end_effector_pose_dq();
 
     bool set_joint_positions(const VectorXd& desired_joint_positions);
-    std::tuple<VectorXd, bool> set_and_get_joint_positions(const VectorXd& desired_joint_positions);
+    VectorXd set_and_get_joint_positions(const VectorXd& desired_joint_positions);
     bool set_end_effector_pose_dq(const DQ& pose);
 
     void connect(); //Throws std::runtime_error()

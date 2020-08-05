@@ -179,12 +179,8 @@ int DensoCommunication::control_loop()
                 //Store last joint positions
                 last_joint_positions_ = joint_positions_;
                 //Send desired joint positions and get the current joint positions
-                std::tie(joint_positions_, robot_communication_ok_) = robot_->set_and_get_joint_positions(rad2deg(target_joint_positions_)); //Convert to DEGREES before sending
+                joint_positions_ = robot_->set_and_get_joint_positions(rad2deg(target_joint_positions_)); //Convert to DEGREES before sending
                 joint_positions_ = deg2rad(joint_positions_); //Convert to RADIANS
-                if(!robot_communication_ok_)
-                {
-                    throw std::runtime_error(ros::this_node::getName() + "::Error setting/getting joint positions.");
-                }
             }
             else
             {
@@ -227,7 +223,10 @@ int DensoCommunication::control_loop()
 
         }//End while not kill this node
     } catch (const std::exception& e) {
-        ROS_ERROR_STREAM("Exception caught: " << e.what());
+        ROS_ERROR_STREAM(ros::this_node::getName() + "::Exception caught::" << e.what());
+    } catch (...)
+    {
+        ROS_ERROR_STREAM(ros::this_node::getName() + "::Unexpected error caught.");
     }
 
     motorOff();
