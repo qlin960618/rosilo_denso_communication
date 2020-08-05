@@ -35,7 +35,6 @@ static std::atomic_bool kill_this_process(false);
 void SigIntHandler(int)
 {
     kill_this_process = true;
-    //ROS_INFO_STREAM("SHUTDOWN SIGNAL RECEIVED");
 }
 
 /*********************************************
@@ -51,6 +50,7 @@ rosilo::DensoCommunication* create_instance_from_ros_parameter_server()
     int thread_relative_deadline_nsec;
     bool enable_real_time_scheduling;
     bool read_only;
+    double speed;
     ROS_INFO_STREAM("Trying to load Denso Communication Node parameters for node " << ros::this_node::getName());
     if(!nodehandle.getParam(ros::this_node::getName()+"/robot_ip_address",robot_ip_address)){return nullptr;}
     if(!nodehandle.getParam(ros::this_node::getName()+"/port",port)){return nullptr;}
@@ -59,6 +59,7 @@ rosilo::DensoCommunication* create_instance_from_ros_parameter_server()
     if(!nodehandle.getParam(ros::this_node::getName()+"/enable_real_time_scheduling",enable_real_time_scheduling)){return nullptr;}
     if(!nodehandle.getParam(ros::this_node::getName()+"/thread_relative_deadline_nsec",thread_relative_deadline_nsec)){return nullptr;}
     if(!nodehandle.getParam(ros::this_node::getName()+"/read_only",read_only)){return nullptr;}
+    if(!nodehandle.getParam(ros::this_node::getName()+"/speed",speed)){return nullptr;}
 
     return new rosilo::DensoCommunication(robot_ip_address,port,thread_sampling_time_nsec,thread_estimated_computation_time_upper_bound_nsec,thread_relative_deadline_nsec,enable_real_time_scheduling,read_only,&kill_this_process);
 }
@@ -115,7 +116,8 @@ void DensoCommunication::publishToolPose(const DQ &tool_pose)
 }
 
 //Constructor
-DensoCommunication::DensoCommunication(const std::string& robot_ip_address, const int& port, const int thread_sampling_time_nsec, const int thread_estimated_computation_time_upper_bound_nsec, const int thread_relative_deadline_nsec, const bool enable_realtime_scheduling, bool read_only, std::atomic_bool *kill_this_node)
+DensoCommunication::DensoCommunication(const std::string& robot_ip_address, const int& port, const int thread_sampling_time_nsec, const int thread_estimated_computation_time_upper_bound_nsec, const int thread_relative_deadline_nsec, const bool enable_realtime_scheduling, bool read_only, const double &speed, std::atomic_bool *kill_this_node):
+speed_(speed)
 {
     read_only_ = read_only;
     realtime_scheduling_enabled_ = enable_realtime_scheduling;
@@ -275,8 +277,8 @@ void DensoCommunication::motorOn()
         ROS_INFO_STREAM("Calling MotorOn");
         robot_->motor_on();
         clock_->safe_sleep_seconds(6.,kill_this_node_);
-        ROS_INFO_STREAM("Calling SetSpeed");
-        robot_->set_speed(100.,100.,100.);
+        ROS_INFO_STREAM("Calling SetSpeed with speed = " << speed_);
+        robot_->set_speed(speed_,speed_,speed_);
         clock_->safe_sleep_seconds(6.,kill_this_node_);
         ROS_INFO_STREAM("Calling SlaveModeOn");
         robot_->slave_mode_on(driverilo::DensoRobotDriver::SLAVE_MODE_JOINT_CONTROL);

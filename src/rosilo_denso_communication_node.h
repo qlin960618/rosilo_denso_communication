@@ -70,6 +70,9 @@ private:
 
     DQ tool_pose_;
 
+    //
+    double speed_;
+
     //Control loop time measurement
     std::unique_ptr<rosilo::Clock> clock_;
     int    thread_sampling_time_nsec_;
@@ -105,7 +108,7 @@ public:
     DensoCommunication()=delete;
 
     //Constructor
-    DensoCommunication(const std::string& robot_ip_address, const int& port, const int thread_sampling_time_nsec, const int thread_estimated_computation_time_upper_bound_nsec, const int thread_relative_deadline_nsec, const bool enable_realtime_scheduling, bool read_only, std::atomic_bool* kill_this_node);
+    DensoCommunication(const std::string& robot_ip_address, const int& port, const int thread_sampling_time_nsec, const int thread_estimated_computation_time_upper_bound_nsec, const int thread_relative_deadline_nsec, const bool enable_realtime_scheduling, bool read_only, const double& speed, std::atomic_bool* kill_this_node);
     ~DensoCommunication()=default;
 
     int control_loop();
