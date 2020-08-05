@@ -49,6 +49,8 @@ catkin_package(
 # include_directories(include)
 include_directories(
     include
+    src/bcap
+    src/bcap/bCAPClient
     ${catkin_INCLUDE_DIRS}
     )
 
