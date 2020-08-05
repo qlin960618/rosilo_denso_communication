@@ -61,7 +61,7 @@ rosilo::DensoCommunication* create_instance_from_ros_parameter_server()
     if(!nodehandle.getParam(ros::this_node::getName()+"/read_only",read_only)){return nullptr;}
     if(!nodehandle.getParam(ros::this_node::getName()+"/speed",speed)){return nullptr;}
 
-    return new rosilo::DensoCommunication(robot_ip_address,port,thread_sampling_time_nsec,thread_estimated_computation_time_upper_bound_nsec,thread_relative_deadline_nsec,enable_real_time_scheduling,read_only,&kill_this_process);
+    return new rosilo::DensoCommunication(robot_ip_address,port,thread_sampling_time_nsec,thread_estimated_computation_time_upper_bound_nsec,thread_relative_deadline_nsec,enable_real_time_scheduling,read_only,speed,&kill_this_process);
 }
 
 int main(int argc, char** argv)
