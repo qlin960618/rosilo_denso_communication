@@ -22,6 +22,7 @@ find_package(catkin REQUIRED COMPONENTS
     rosilo_datalogger
     rosilo_clock
     rosilo_conversions
+    rosilo_bcap_driver
     )
 
 ###################################
@@ -36,7 +37,7 @@ find_package(catkin REQUIRED COMPONENTS
 catkin_package(
     INCLUDE_DIRS include
     LIBRARIES rosilo_denso_communication
-    CATKIN_DEPENDS roscpp rospy geometry_msgs sensor_msgs rosilo_clock rosilo_conversions
+    CATKIN_DEPENDS roscpp rospy geometry_msgs sensor_msgs std_msgs rosilo_datalogger rosilo_clock rosilo_conversions rosilo_bcap_driver
     # DEPENDS dqrobotics
     )
 
@@ -49,28 +50,12 @@ catkin_package(
 # include_directories(include)
 include_directories(
     include
-    src/bcap
-    src/bcap/bCAPClient
     ${catkin_INCLUDE_DIRS}
     )
 
 ## Declare a C++ library
 add_library(rosilo_denso_communication
     src/rosilo_denso_communication_interface.cpp
-
-    src/driverilo/bcap_driver.cpp
-    src/driverilo/denso_robot_driver.cpp
-
-    src/bcap/bCAPClient/bcap_client.c
-
-    src/bcap/bcap_common.c
-    src/bcap/dn_com.c
-    src/bcap/dn_common.c
-    src/bcap/dn_device.c
-    src/bcap/dn_tcp.c
-    src/bcap/dn_udp.c
-    src/bcap/dn_thread.c
-    src/bcap/dn_socket.c
     )
 
 ## Add cmake target dependencies of the library
@@ -97,9 +82,13 @@ add_dependencies(rosilo_denso_communication_node  ${${PROJECT_NAME}_EXPORTED_TAR
 add_dependencies(rosilo_denso_communication_vrep_node  ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 add_dependencies(rosilo_denso_communication_dummy_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 
+target_link_libraries(rosilo_denso_communication
+    dqrobotics
+    ${catkin_LIBRARIES}
+    )
+
 target_link_libraries(rosilo_denso_communication_node
     dqrobotics
-    rosilo_denso_communication
     ${catkin_LIBRARIES}
     )
 
