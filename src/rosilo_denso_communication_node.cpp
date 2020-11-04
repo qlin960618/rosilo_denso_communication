@@ -134,7 +134,11 @@ DensoCommunication::DensoCommunication(const std::string& robot_ip_address, cons
     datalogger_node_handle_.setCallbackQueue(&datalogger_callback_queue_);
     datalogger_ = std::unique_ptr<rosilo::DataloggerInterface>(new rosilo::DataloggerInterface(datalogger_node_handle_,10));
 
-    robot_ = std::unique_ptr<driverilo::DensoRobotDriver>(new driverilo::DensoRobotDriver(robot_ip_address,port));
+    rosilo::RobotDriverDensoConfiguration robot_configuration;
+    robot_configuration.ip_address = robot_ip_address;
+    robot_configuration.port = port;
+    robot_configuration.speed = 100.0;
+    robot_ = std::unique_ptr<rosilo::RobotDriverDenso>(new rosilo::RobotDriverDenso(robot_configuration,kill_this_node_));
 
     //Initialize vectors
     target_joint_positions_  = VectorXd::Zero(6);
@@ -160,10 +164,10 @@ int DensoCommunication::control_loop()
     try{
         clock_->init();
         connect();
-        if(!read_only_)
-        {
-            motorOn();
-        }
+        //if(!read_only_)
+        //{
+        //    motorOn();
+        //}
 
         while(not (*kill_this_node_))
         {
@@ -177,8 +181,10 @@ int DensoCommunication::control_loop()
                 //Store last joint positions
                 last_joint_positions_ = joint_positions_;
                 //Send desired joint positions and get the current joint positions
-                std::tie(joint_positions_, robot_communication_ok_) = robot_->set_and_get_joint_positions(rad2deg(target_joint_positions_)); //Convert to DEGREES before sending
-                joint_positions_ = deg2rad(joint_positions_); //Convert to RADIANS
+                robot_->set_target_joint_positions(target_joint_positions_);
+                joint_positions_ = robot_->get_joint_positions();
+                //std::tie(joint_positions_, robot_communication_ok_) = robot_->set_and_get_joint_positions(rad2deg(target_joint_positions_)); //Convert to DEGREES before sending
+                //joint_positions_ = deg2rad(joint_positions_); //Convert to RADIANS
                 if(!robot_communication_ok_)
                 {
                     ROS_ERROR_STREAM("Error setting joint positions of robot " << node_prefix_);
@@ -190,8 +196,9 @@ int DensoCommunication::control_loop()
                 //Store last joint positions
                 last_joint_positions_ = joint_positions_;
                 //Get current joint positions DEGREES
-                std::tie(joint_positions_, robot_communication_ok_) = robot_->get_joint_positions();
-                joint_positions_ = deg2rad(joint_positions_);//Convert to RADIANS
+                //std::tie(joint_positions_, robot_communication_ok_) = robot_->get_joint_positions();
+                joint_positions_ = robot_->get_joint_positions();
+                //joint_positions_ = deg2rad(joint_positions_);//Convert to RADIANS
                 if(!robot_communication_ok_)
                 {
                     ROS_ERROR_STREAM("Error getting joint positions from robot " << node_prefix_);
@@ -199,7 +206,7 @@ int DensoCommunication::control_loop()
                 }
                 //Get Tool Pose (FROM RC8)
                 try {
-                    std::tie(tool_pose_, robot_communication_ok_) = robot_->get_end_effector_pose_dq();
+                    tool_pose_ = robot_->get_end_effector_pose_dq();
                     if(!robot_communication_ok_)
                     {
                         ROS_ERROR_STREAM("Error getting end effector pose from robot " << node_prefix_);
@@ -229,8 +236,6 @@ int DensoCommunication::control_loop()
     } catch (const std::exception& e) {
         ROS_ERROR_STREAM("Exception caught: " << e.what());
     }
-
-    motorOff();
     disconnect();
 
     return 0;
@@ -240,6 +245,7 @@ void DensoCommunication::connect()
 {
     try
     {
+        robot_->initialize();
         robot_->connect();
         //The DENSO robot gives us garbage joint positions initially and afaik
         //we cannot know whether they are garbage in a smart way. Therefore we just
@@ -247,11 +253,7 @@ void DensoCommunication::connect()
         VectorXd local_joint_positions = VectorXd::Zero(6);
         while(local_joint_positions.norm() < 1 && not (*kill_this_node_))
         {
-            std::tie(local_joint_positions, robot_communication_ok_) = robot_->get_joint_positions();
-            if(!robot_communication_ok_)
-            {
-                ROS_ERROR_STREAM("Error getting joint positions from robot " << node_prefix_);
-            }
+            local_joint_positions = robot_->get_joint_positions();
         }
         //Initialize the robot buffers
         joint_positions_        = deg2rad(local_joint_positions);
@@ -265,41 +267,10 @@ void DensoCommunication::connect()
 
 void DensoCommunication::disconnect()
 {
+    robot_->deinitialize();
     robot_->disconnect();
 }
 
-void DensoCommunication::motorOn()
-{
-    try
-    {
-        ROS_INFO_STREAM("Calling MotorOn");
-        robot_->motor_on();
-        clock_->safe_sleep_seconds(6.,kill_this_node_);
-        ROS_INFO_STREAM("Calling SetSpeed");
-        robot_->set_speed(100.,100.,100.);
-        clock_->safe_sleep_seconds(6.,kill_this_node_);
-        ROS_INFO_STREAM("Calling SlaveModeOn");
-        robot_->slave_mode_on(driverilo::DensoRobotDriver::SLAVE_MODE_JOINT_CONTROL);
-        clock_->safe_sleep_seconds(6.,kill_this_node_);
-    }
-    catch(const std::runtime_error& e)
-    {
-        throw e;
-    }
-}
-
-void DensoCommunication::motorOff()
-{
-    ROS_INFO_STREAM("Calling SlaveModeOff");
-    robot_->slave_mode_off();
-    clock_->blocking_sleep_seconds(3.);
-    ROS_INFO_STREAM("Calling SetSpeed");
-    robot_->set_speed(1.,1.,1.);
-    clock_->blocking_sleep_seconds(3.);
-    ROS_INFO_STREAM("Calling MotorOff");
-    robot_->motor_off();
-    clock_->blocking_sleep_seconds(3.);
-}
 
 void DensoCommunication::shutdown()
 {

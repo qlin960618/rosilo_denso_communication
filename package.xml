@@ -50,6 +50,8 @@
   <build_depend>rosilo_conversions</build_depend>
   <build_depend>rosilo_clock</build_depend>
   <build_depend>rosilo_datalogger</build_depend>
+  <build_depend>rosilo_robot_driver</build_depend>
+  <build_depend>rosilo_robot_driver_denso</build_depend>
   
   <run_depend>roscpp</run_depend>
   <run_depend>rospy</run_depend>
@@ -60,7 +62,8 @@
   <run_depend>rosilo_conversions</run_depend>
   <run_depend>rosilo_clock</run_depend>
   <run_depend>rosilo_datalogger</run_depend>
-  
+  <run_depend>rosilo_robot_driver</run_depend>
+  <run_depend>rosilo_robot_driver_denso</run_depend>
 
   <!-- The export tag contains other, unspecified, tags -->
   <export>

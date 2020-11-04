@@ -33,10 +33,9 @@
 #include <std_msgs/Float64MultiArray.h>
 #include <geometry_msgs/PoseStamped.h>
 
-#include "driverilo/denso_robot_driver.h"
-
 #include <rosilo_clock/rosilo_clock.h>
 #include <rosilo_datalogger/rosilo_datalogger_interface.h>
+#include <rosilo_robot_driver_denso/rosilo_robot_driver_denso.h>
 
 using namespace Eigen;
 
@@ -83,7 +82,7 @@ private:
     bool read_only_;
 
     //Denso comm
-    std::unique_ptr<driverilo::DensoRobotDriver> robot_;
+    std::unique_ptr<rosilo::RobotDriverDenso> robot_;
     bool robot_communication_ok_;
 
     std::string node_prefix_;
@@ -95,8 +94,6 @@ private:
 
     void connect();
     void disconnect();
-    void motorOn();
-    void motorOff();
 
     void shutdown();
 
