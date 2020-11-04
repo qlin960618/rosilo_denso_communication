@@ -100,3 +100,4 @@ target_link_libraries(rosilo_denso_communication_vrep_node
     ${catkin_LIBRARIES}
     )
 
+catkin_python_setup()
