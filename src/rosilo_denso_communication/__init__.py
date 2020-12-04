@@ -49,9 +49,9 @@ class DensoCommunicationInterface:
 
         self.subscriber_joint_positions_ = rospy.Subscriber(node_prefix+"get/joint_state", rosmsg_JointState, self._get_joint_state_callback)
 
-    def set_target_joint_position(self, target_positions):
-        msg = rosmsg_Float64MultiArray(target_positions)
-        self.publisher_target_joint_positions_.publish(data=msg)
+    def set_target_joint_positions(self, target_positions):
+        msg = rosmsg_Float64MultiArray(data=target_positions)
+        self.publisher_target_joint_positions_.publish(msg)
 
     def get_joint_positions(self):
         if self.joint_positions_ is None:
