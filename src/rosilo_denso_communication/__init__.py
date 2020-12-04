@@ -23,9 +23,6 @@
 # ################################################################
 """
 
-##############################################################################
-#                INCLUDES
-##############################################################################
 # System
 from dqrobotics import *
 
@@ -40,10 +37,6 @@ from sensor_msgs.msg import JointState as rosmsg_JointState
 from std_msgs.msg import Float64MultiArray as rosmsg_Float64MultiArray
 
 class DensoCommunicationInterface:
-
-    #################################
-    #  CONSTRUCTORS AND DESTRUCTORS
-    #################################
 
     def __init__(self, node_prefix):
 
