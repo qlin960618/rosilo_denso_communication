@@ -58,7 +58,7 @@ class DensoCommunicationInterface:
 
     def set_target_joint_position(self, target_positions):
         msg = rosmsg_Float64MultiArray(target_positions)
-        self.publisher_target_joint_positions_.publish(msg)
+        self.publisher_target_joint_positions_.publish(data=msg)
 
     def get_joint_positions(self):
         if self.joint_positions_ is None:
@@ -71,4 +71,4 @@ class DensoCommunicationInterface:
     def _get_joint_state_callback(self, msg):
         self.joint_positions_ = msg.position
         if not self.enabled_:
-            enabled_ = True
+            self.enabled_ = True
