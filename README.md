@@ -1,4 +1,8 @@
+# This packaged is Archived and is no longer supported.
+
+```
 # rosilo_denso_communication
+
 Communicate with DENSO robots over ROS.
 
 ## Requirements
@@ -13,3 +17,4 @@ Communicate with DENSO robots over ROS.
 See installation instructions at: https://dqrobotics.github.io/
 - `libdqrobotics`
 - `libdqrobotics-interface-vrep`
+```
