@@ -1,5 +1,5 @@
 <launch>
-<node pkg="denso_communication" type="denso_communication_dummy_node" name="arm1">
-<rosparam file="$(find denso_communication)/cfg/densovs050_dummy_arm.yaml" command="load"/>
+<node pkg="rosilo_denso_communication" type="rosilo_denso_communication_dummy_node" name="arm1">
+<rosparam file="$(find rosilo_denso_communication)/cfg/densovs050_dummy_arm.yaml" command="load"/>
 </node>
 </launch>
