@@ -1,5 +1,6 @@
 <launch>
 <node pkg="denso_communication" type="denso_communication_vrep_node" name="arm1">
-<rosparam file="$(find denso_communication)/cfg/densovs050_vrep_arm1.yaml" command="load"/>
+  <rosparam file="$(find denso_communication)/cfg/densovs050_vrep_arm1.yaml" command="load"/>
+  <rosparam file="$(find qlin_control)/config/remote_component_config.yaml" command="load"/>
 </node>
 </launch>

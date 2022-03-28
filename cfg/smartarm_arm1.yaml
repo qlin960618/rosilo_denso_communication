@@ -3,5 +3,5 @@
 "thread_sampling_time_nsec": 4000000
 "thread_estimated_computation_time_upper_bound_nsec": 2500000
 "thread_relative_deadline_nsec": 4000000
-"enable_real_time_scheduling": true
+"enable_real_time_scheduling": false
 "read_only": false

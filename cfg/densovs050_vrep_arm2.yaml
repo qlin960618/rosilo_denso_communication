@@ -2,8 +2,9 @@
 "thread_sampling_time_nsec": 8000000
 "thread_estimated_computation_time_upper_bound_nsec": 3000000
 "thread_relative_deadline_nsec": 8000000
-"enable_real_time_scheduling": true
+"enable_real_time_scheduling": false
 #Vrep Parameters
-"vrep_joint_names": ["DENSOVS050_joint1#0","DENSOVS050_joint2#0","DENSOVS050_joint3#0","DENSOVS050_joint4#0","DENSOVS050_joint5#0","DENSOVS050_joint6#0"]
-"vrep_ip": "127.0.0.1"
-"vrep_port": 19998
+"vrep_joint_names": ["VS050_joint1_L","VS050_joint2_L","VS050_joint3_L","VS050_joint4_L","VS050_joint5_L","VS050_joint6_L"]
+# "vrep_ip": "127.0.0.1"
+# "vrep_ip": "127.0.0.1"
+"vrep_port": 19997
