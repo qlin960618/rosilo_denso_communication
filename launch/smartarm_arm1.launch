@@ -1,5 +1,5 @@
 <launch>
-<node pkg="rosilo_denso_communication" type="rosilo_denso_communication_node" name="arm1">
+<node pkg="rosilo_denso_communication" type="rosilo_denso_communication_node" name="arm1" required='true'>
 <rosparam file="$(find rosilo_denso_communication)/cfg/smartarm_arm1.yaml" command="load"/>
 </node>
 </launch>
